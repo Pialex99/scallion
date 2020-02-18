@@ -142,7 +142,7 @@ case class StringValue(value: String, range: (Int, Int)) extends Value
 case class NullValue(range: (Int, Int)) extends Value
 
 // Then, we define the JSON Parser.
-object JSONParser extends Syntaxes with ll1.Parsing with Enumeration {
+object JSONParser extends Syntaxes with ll1.LL1Parsing with Enumeration {
 
   type Token = example.json.Token
   type Kind = TokenClass
@@ -220,9 +220,9 @@ object JSONParser extends Syntaxes with ll1.Parsing with Enumeration {
 
   // Turn the iterator of tokens into a value, if possible.
   def apply(it: Iterator[Token]): Option[Value] = parser(it) match {
-    case LL1.Parsed(value, syntax) => Some(value)  // The parse was successful.
-    case LL1.UnexpectedToken(token, syntax) => None  // Encountered an unexpected `token`.
-    case LL1.UnexpectedEnd(syntax) => None  // Encountered an unexpected end of input.
+    case Parsed(value, syntax) => Some(value)  // The parse was successful.
+    case UnexpectedToken(token, expected, syntax) => None  // Encountered an unexpected `token`.
+    case UnexpectedEnd(expected, syntax) => None  // Encountered an unexpected end of input.
     // In each case, syntax contains a `Syntax[Value]` which can
     // be used to resume parsing at that point.
   }

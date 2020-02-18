@@ -27,7 +27,7 @@ import java.util.WeakHashMap
 import scallion.util.internal._
 
 /** This trait implements LL(1) parsing with derivatives. */
-trait Parsing { self: Syntaxes =>
+trait LL1Parsing extends Parsing { self: Syntaxes =>
 
   /** Cache of computation of LL(1) properties for syntaxes. */
   private val syntaxToPropertiesCache: WeakHashMap[Syntax[_], LL1.Properties[_]] = new WeakHashMap()
@@ -41,7 +41,7 @@ trait Parsing { self: Syntaxes =>
   }
 
   /** Factory of LL(1) parsers. */
-  object LL1 {
+  object LL1 extends ParserFactory {
 
     /** Contains properties of syntaxes.
       *
@@ -66,21 +66,11 @@ trait Parsing { self: Syntaxes =>
       def isLL1: Boolean = conflicts.isEmpty
     }
 
-    /** Describes a LL(1) conflict.
-      *
-      * @group conflict
-      */
-    sealed trait Conflict {
-
-      /** Source of the conflict. */
-      val source: Syntax.Disjunction[_]
-    }
-
     /** Contains the description of the various LL(1) conflicts.
       *
       * @group conflict
       */
-    object Conflict {
+    object LL1Conflict {
 
       import Syntax._
 
@@ -111,30 +101,10 @@ trait Parsing { self: Syntaxes =>
                                 ambiguities: Set[Kind]) extends Conflict
     }
 
-    import Conflict._
+    import LL1Conflict._
 
     /** Follow-last set tagged with its source. */
     private case class ShouldNotFollowEntry(source: Syntax.Disjunction[_], kinds: Set[Kind])
-
-    /** Indicates that a syntax is not LL(1) due to various conflicts.
-      *
-      * @group conflict
-      */
-    case class ConflictException(conflicts: Set[Conflict]) extends Exception("Syntax is not LL(1).")
-
-    /** Builds a LL(1) parser from a syntax description.
-      * In case the syntax is not LL(1),
-      * returns the set of conflicts instead of a parser.
-      *
-      * @param syntax The description of the syntax.
-      * @group parsing
-      */
-    def build[A](syntax: Syntax[A]): Either[Set[Conflict], Parser[A]] =
-      util.Try(apply(syntax, enforceLL1=true)) match {
-        case util.Success(parser) => Right(parser)
-        case util.Failure(ConflictException(conflicts)) => Left(conflicts)
-        case util.Failure(exception) => throw exception
-      }
 
     /** Cache of transformation from syntax to LL(1) parser. */
     private val syntaxToTreeCache: WeakHashMap[Syntax[_], Tree[_]] = new WeakHashMap()
@@ -148,7 +118,7 @@ trait Parsing { self: Syntaxes =>
       * @throws ConflictException when the `syntax` is not LL(1) and `enforceLL1` is not set to `false`.
       * @group parsing
       */
-    def apply[A](syntax: Syntax[A], enforceLL1: Boolean = true): Parser[A] = {
+    override def apply[A](syntax: Syntax[A], enforceLL1: Boolean = true): LL1Parser[A] = {
 
       // Handles caching.
       if (syntaxToTreeCache.containsKey(syntax)) {
@@ -525,66 +495,11 @@ trait Parsing { self: Syntaxes =>
       }
     }
 
-    /** Result of parsing.
-      *
-      * @group result
-      */
-    sealed trait ParseResult[A] {
-
-      /** Parser for the rest of input. */
-      val rest: Parser[A]
-
-      /** Returns the parsed value, if any. */
-      def getValue: Option[A] = this match {
-        case Parsed(value, _) => Some(value)
-        case _ => None
-      }
-
-      /** Apply the given function on the result of the parse */
-      def map[B](f: A => B): ParseResult[B] = this match {
-        case Parsed(value, rest)          => Parsed(f(value), rest.map(f))
-        case UnexpectedEnd(rest)          => UnexpectedEnd(rest.map(f))
-        case UnexpectedToken(token, rest) => UnexpectedToken(token, rest.map(f))
-      }
-    }
-
-    /** Indicates that the input has been fully parsed, resulting in a `value`.
-      *
-      * A parser for subsequent input is also provided.
-      *
-      * @param value The value produced.
-      * @param rest  Parser for more input.
-      *
-      * @group result
-      */
-    case class Parsed[A](value: A, rest: Parser[A]) extends ParseResult[A]
-
-    /** Indicates that the provided `token` was not expected at that point.
-      *
-      * The parser at the point of error is returned.
-      *
-      * @param token The token at fault.
-      * @param rest  Parser at the point of error.
-      *
-      * @group result
-      */
-    case class UnexpectedToken[A](token: Token, rest: Parser[A]) extends ParseResult[A]
-
-    /** Indicates that end of input was unexpectedly encountered.
-      *
-      * The `syntax` for subsequent input is provided.
-      *
-      * @param syntax Syntax at the end of input.
-      *
-      * @group result
-      */
-    case class UnexpectedEnd[A](rest: Parser[A]) extends ParseResult[A]
-
     /** LL(1) parser.
       *
       * @group parsing
       */
-    sealed trait Parser[A] { self =>
+    sealed trait LL1Parser[A] extends Parser[A] { self =>
 
       /** The value, if any, corresponding to the empty sequence of tokens in `this` parser.
         *
@@ -610,24 +525,12 @@ trait Parsing { self: Syntaxes =>
         */
       def first: Set[Kind]
 
-      /** Syntax corresponding to this parser.
-        *
-        * @group property
-        */
-      def syntax: Syntax[A]
-
-      /** Parses a sequence of tokens.
-        *
-        * @group parsing
-        */
-      def apply(tokens: Iterator[Token]): ParseResult[A]
-
       /** Apply the given function on the result of the parser.
        *
        * @group parsing
        */
-      def map[B](f: A => B): Parser[B] = {
-        new Parser[B] {
+      override def map[B](f: A => B): Parser[B] = {
+        new LL1Parser[B] {
           def nullable = self.nullable.map(f)
           def first = self.first
           def syntax = self.syntax.map(f)
@@ -639,7 +542,7 @@ trait Parsing { self: Syntaxes =>
       }
     }
 
-    private case class Focused[A, B](tree: Tree[B], context: Context[B, A]) extends Parser[A] {
+    private case class Focused[A, B](tree: Tree[B], context: Context[B, A]) extends LL1Parser[A] {
 
       override def nullable: Option[A] = {
 
@@ -700,7 +603,7 @@ trait Parsing { self: Syntaxes =>
           val kind: Kind = getKind(token)
 
           current.locate(kind) match {
-            case None => return UnexpectedToken(token, current)
+            case None => return UnexpectedToken(token, current.first, current)
             case Some(focused) => {
               current = focused.pierce(token, kind)
             }
@@ -709,7 +612,7 @@ trait Parsing { self: Syntaxes =>
 
         current.nullable match {
           case Some(value) => Parsed(value, current)
-          case None => UnexpectedEnd(current)
+          case None => UnexpectedEnd(current.first, current)
         }
       }
 

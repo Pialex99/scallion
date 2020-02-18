@@ -26,7 +26,7 @@ case object C extends Symbol
 case object D extends Symbol
 case object M extends Symbol
 
-object RomanSyntax extends Syntaxes with ll1.Parsing {
+abstract class RomanSyntax extends Syntaxes {
 
   type Token = Symbol
   type Kind = Symbol
@@ -93,3 +93,7 @@ object RomanSyntax extends Syntaxes with ll1.Parsing {
     case _ => Seq()
   })
 }
+
+object RomanLL1Syntax extends RomanSyntax with ll1.LL1Parsing
+
+object RomanLR1Syntax extends RomanSyntax with lr1.LR1Parsing

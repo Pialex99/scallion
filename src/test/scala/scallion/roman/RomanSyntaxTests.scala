@@ -17,9 +17,9 @@ package scallion.roman
 
 import org.scalatest._
 
-class RomanSyntaxTests extends FlatSpec with Inside {
+class RomanSyntaxLL1Tests extends FlatSpec with Inside {
 
-  import RomanSyntax._
+  import RomanLL1Syntax._
 
   val parser = LL1(number)
 
@@ -93,4 +93,42 @@ class RomanSyntaxTests extends FlatSpec with Inside {
   //     }
   //   }
   // }
+}
+
+
+class RomanSyntaxLR1Tests extends FlatSpec with Inside {
+
+  import RomanLR1Syntax._
+
+  val parser = LR1(number)
+
+  def tokenize(string: String): Iterator[Symbol] =
+    string.map {
+      case 'I' => I
+      case 'V' => V
+      case 'X' => X
+      case 'L' => L
+      case 'C' => C
+      case 'D' => D
+      case 'M' => M
+    }.iterator
+
+  def display(symbols: Seq[Symbol]): String =
+    symbols.map(_.toString).mkString("")
+
+  it should "be able to parse various examples" in {
+    assert(parser(tokenize("")).getValue == Some(0))
+    assert(parser(tokenize("I")).getValue == Some(1))
+    assert(parser(tokenize("XII")).getValue == Some(12))
+    assert(parser(tokenize("XCIII")).getValue == Some(93))
+    assert(parser(tokenize("MCDXLIV")).getValue == Some(1444))
+    assert(parser(tokenize("MMMD")).getValue == Some(3500))
+    assert(parser(tokenize("XLVI")).getValue == Some(46))
+    assert(parser(tokenize("MCDXCI")).getValue == Some(1491))
+    assert(parser(tokenize("XVII")).getValue == Some(17))
+    assert(parser(tokenize("MDCCCI")).getValue == Some(1801))
+    assert(parser(tokenize("MV")).getValue == Some(1005))
+    assert(parser(tokenize("CXVIII")).getValue == Some(118))
+    assert(parser(tokenize("XXXIX")).getValue == Some(39))
+  }
 }

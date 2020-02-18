@@ -20,10 +20,10 @@ package ll1
   *
   * @group debug
   */
-trait Debug { self: Syntaxes with ll1.Parsing =>
+trait Debug { self: Syntaxes with LL1Parsing =>
 
   import LL1._
-  import Conflict._
+  import LL1Conflict._
 
   /** Prints a report of LL(1) conflicts in the syntax.
     *
@@ -41,8 +41,8 @@ trait Debug { self: Syntaxes with ll1.Parsing =>
 
     builder ++= "=== LL(1) Check Report ===\n\n"
 
-    LL1.build(syntax) match {
-      case Right(parser) => {
+    (LL1.build(syntax): @unchecked) match {
+      case Right(parser:LL1Parser[_]) => {
         builder ++= "The syntax is LL(1)"
         if (parser.isProductive) {
           builder ++= " and productive.\n"

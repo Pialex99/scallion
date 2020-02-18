@@ -76,7 +76,7 @@ case class LitExpr(value: Int) extends Expr
 case class BinaryExpr(op: Char, left: Expr, right: Expr) extends Expr
 case class UnaryExpr(op: Char, inner: Expr) extends Expr
 
-object CalcSyntax extends Syntaxes with Operators with ll1.Parsing {
+object CalcSyntax extends Syntaxes with Operators with ll1.LL1Parsing {
 
   type Token = example.calculator.Token
   type Kind = TokenClass
@@ -147,7 +147,7 @@ object CalcSyntax extends Syntaxes with Operators with ll1.Parsing {
   //def unapply(expr: Expr): Iterator[Seq[Token]] = value.unapply(expr)
 
   def apply(it: Iterator[Token]): Option[Expr] = parser(it) match {
-    case LL1.Parsed(value, _) => Some(value)
+    case Parsed(value, _) => Some(value)
     case _ => None
   }
 }
