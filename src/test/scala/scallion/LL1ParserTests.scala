@@ -422,34 +422,36 @@ class LL1ParserTests extends ParserTests with ll1.LL1Parsing {
   }
 
   // disjunction
+  
+  import Syntax._
 
-  // "disjunction" should "accept from the first parser" in {
-  //   val parser = LL1(elem(BoolClass) | elem(NumClass))
+  "disjunction" should "accept from the first parser (LL1)" in {
+    val parser = LL1(elem(BoolClass) | elem(NumClass))
 
-  //   inside(parser(Seq(Bool(true)).iterator)) {
-  //     case Parsed(res, rest) => {
-  //       assert(res == Bool(true))
-  //       inside(rest.syntax) {
-  //         case Success(Bool(true), _) => ()
-  //       }
-  //     }
-  //   }
-  // }
+    inside(parser(Seq(Bool(true)).iterator)) {
+      case Parsed(res, rest: LL1Parser[_]) => {
+        assert(res == Bool(true))
+        inside(rest.syntax) {
+          case Success(Bool(true), _) => ()
+        }
+      }
+    }
+  }
 
-  // it should "accept from the second parser" in {
-  //   val parser = LL1(elem(BoolClass) | elem(NumClass))
+  it should "accept from the second parser (LL1)" in {
+    val parser = LL1(elem(BoolClass) | elem(NumClass))
 
-  //   inside(parser(Seq(Num(1)).iterator)) {
-  //     case Parsed(res, rest) => {
-  //       assert(res == Num(1))
-  //       inside(rest.syntax) {
-  //         case Success(Num(1), _) => ()
-  //       }
-  //     }
-  //   }
-  // }
+    inside(parser(Seq(Num(1)).iterator)) {
+      case Parsed(res, rest: LL1Parser[_]) => {
+        assert(res == Num(1))
+        inside(rest.syntax) {
+          case Success(Num(1), _) => ()
+        }
+      }
+    }
+  }
 
-  "disjunction" should "not be nullable if neither sides are nullable" in {
+  it should "not be nullable if neither sides are nullable" in {
     val parser = LL1(elem(BoolClass) | elem(NumClass))
 
     assert(parser.nullable.isEmpty)

@@ -2,3 +2,5 @@ target/
 project/target/
 example/target/
 .metals/
+.bloop/
+project/metals.sbt

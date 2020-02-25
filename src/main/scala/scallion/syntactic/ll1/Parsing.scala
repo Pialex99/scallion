@@ -500,6 +500,11 @@ trait LL1Parsing extends Parsing { self: Syntaxes =>
       * @group parsing
       */
     sealed trait LL1Parser[A] extends Parser[A] { self =>
+      /** Syntax corresponding to this parser.
+        *
+        * @group property
+        */
+      def syntax: Syntax[A]
 
       /** The value, if any, corresponding to the empty sequence of tokens in `this` parser.
         *

@@ -35,12 +35,6 @@ trait Parsing { self: Syntaxes =>
     * @group parsing
     */
   trait Parser[A] { self =>
-    /** Syntax corresponding to this parser.
-      *
-      * @group property
-      */
-    def syntax: Syntax[A]
-
     /** Parses a sequence of tokens.
       *
       * @group parsing
@@ -53,8 +47,6 @@ trait Parsing { self: Syntaxes =>
      */
     def map[B](f: A => B): Parser[B] = {
       new Parser[B] {
-        def syntax = self.syntax.map(f)
-
         def apply(tokens: Iterator[Token]): ParseResult[B] = {
           self.apply(tokens).map(f)
         }

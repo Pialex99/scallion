@@ -26,11 +26,14 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
         val wtt: WeakTypeTag[A] = weakTypeTag[A]
       } 
 
-      case class Terminal(kind: Kind) extends Symbol[Token]
       case class Epsilon[A](value: A) extends Symbol[A]
+      case class Terminal(kind: Kind) extends Symbol[Token]
       case class NonTerminal[A](id: Id) extends Symbol[A]
 
-      sealed trait Rule[A] { val id: Id }
+      sealed trait Rule[A] { 
+        val id: Id 
+        val wtt: WeakTypeTag[A] = weakTypeTag[A]
+      }
       case class TransformRule[A, B](id: Id, f: B => A, symbol: NonTerminal[B]) extends Rule[A]
       case class NormalRule[A](id: Id, symbols: Seq[Symbol[_]]) extends Rule[A]
       
@@ -42,7 +45,7 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
       case object Done extends Action
 
       def getRules[A](syntax: Syntax[A]) = {
-        var nextId: Id = 0
+        var nextId: Id = 1
         var rules = Vector[Rule[_]]()
         val queue = new Queue[Syntax[_]]
         var ids = Map[Syntax[_], Id]()
@@ -83,6 +86,8 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
         }
 
         inspect(syntax)
+        rules :+= NormalRule(0, Seq(NonTerminal(ids(syntax))))
+
         while (queue.nonEmpty) {
           val current = queue.dequeue()
           rules ++= (current match {
@@ -92,16 +97,74 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
         }
         rules
       }
-
-      case class Item(id: Id, prefix: Seq[Symbol[_]], postfix: Seq[Symbol[_]])
-      def items[A](rule: Rule[A]) = rule match {
-        case NormalRule(id, symbols) => ???// symbols.inits.zip(symbols.tails).map(Item(id, _._1, _._2))
-        case TransformRule(id, f, symbol) => ???
-      }
     }
 
     import grammar._
 
+    object item {
+
+      type ItemSet = Seq[Item]
+      case class Item(id: Id, prefix: Seq[Symbol[_]], postfix: Seq[Symbol[_]]) {
+        def startWith: Option[Symbol[_]] = postfix.headOption
+
+        def shift:Option[Item] = startWith.map(s => Item(id, prefix :+ s, postfix.tail))
+      }
+      def items[A](rule: Rule[_]) = rule match {
+        case NormalRule(id, symbols) => 
+          (symbols.inits.toList.reverse, symbols.tails.toList).zipped.map((xs, ys) => Item(id, xs, ys)).toSet
+        case TransformRule(id, f, symbol) => 
+          Set(Item(id, Seq(symbol), Seq()), Item(id, Seq(), Seq(symbol)))
+      }
+
+      def close(itemSet: ItemSet, allItems: Seq[Item]): ItemSet = {
+        val queue = new Queue[Item]()
+        var closedSet = itemSet
+        itemSet.foreach(queue.enqueue(_))
+        while (!queue.isEmpty) {
+          val i = queue.dequeue()
+          i.startWith match {
+            case None => ()
+            case Some(Terminal(_)) => ()
+            case Some(Epsilon(_)) => ???
+            case Some(NonTerminal(id)) => 
+              val toAdd = allItems.filter(i2 => i2.id == id && i2.prefix.isEmpty).diff(closedSet)
+              toAdd.foreach(queue.enqueue(_))
+              closedSet ++= toAdd
+          }
+        }
+        closedSet
+      }
+
+      def startWith(itemSet: ItemSet): Set[Symbol[_]] = itemSet.flatMap(_.startWith).toSet
+
+      def generateTransitionTable(itemSet0: ItemSet, allItems: Seq[Item]): Map[Int, Map[Symbol[_], Int]] = {
+        var nextId = 1
+        val queue = new Queue[ItemSet]()
+        var res: Map[Int, Map[Symbol[_], Int]] = Map()
+        var ids: Map[ItemSet, Int] = Map(itemSet0 -> 0)
+        queue.enqueue(itemSet0)
+        while (!queue.isEmpty) {
+          val is = queue.dequeue()
+          res = res + (ids(is) -> startWith(is).map (x => {
+            val s = close(is.filter(_.startWith == Some(x)).flatMap(_.shift), allItems)
+            val id = 
+              if (ids contains s) 
+                ids(s)
+              else {
+                val newId = nextId
+                nextId += 1
+                queue.enqueue(s)
+                ids += s -> newId
+                newId
+              }
+            x -> id
+          }).toMap)
+        }
+        res
+      }
+    }
+
+    import item._
 
     /** Builds a LR(1) parser from a syntax description.
       *
@@ -114,33 +177,15 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
       */
     override def apply[A](syntax: Syntax[A], enforceLR1: Boolean = true): LR1Parser[A] = {
       val rules = getRules(syntax)
-      rules.foreach(println)
+      val allItems = rules.flatMap(items)
+      val itemSet0 = close(Seq(allItems.head), allItems)
+      val transitionTable = generateTransitionTable(itemSet0, allItems)
+      transitionTable.foreach(println)
       ???
-
-      // def findDisjunctionTransformAndRecurvise[T](s: Syntax[T], acc: Map[Syntax[_], Id], lastId: Id): (Map[Syntax[_], Id], Id) = 
-      //   if (acc contains s) (acc, lastId) else s match {
-      //   case Failure() => (acc, lastId)
-      //   case Elem(_) => (acc, lastId)
-      //   case Success(_, _) => (acc, lastId)
-      //   case Transform(_, _, inner) => 
-      //     findDisjunctionTransformAndRecurvise(inner, acc + (s -> lastId), lastId + 1)
-      //   case Sequence(left, right) => 
-      //     val (leftresult, leftLastId) = findDisjunctionTransformAndRecurvise(left, acc, lastId)
-      //     findDisjunctionTransformAndRecurvise(right, leftresult, leftLastId)
-      //   case Disjunction(left, right) =>
-      //     val (leftresult, leftLastId) = findDisjunctionTransformAndRecurvise(left, acc + (s -> lastId), lastId + 1)
-      //     findDisjunctionTransformAndRecurvise(right, leftresult, leftLastId)
-      //   case r: Recursive[_] => 
-      //     findDisjunctionTransformAndRecurvise(r.inner, acc + (r -> lastId), lastId + 1)
-      // }
-      // val (nonTerminals, lastId) = findDisjunctionTransformAndRecurvise(syntax, Map(), 0)
-      // println(nonTerminals mkString "\n\n")
-      // println(nonTerminals.size, lastId)
-      // val properNonTermials: Set[NonTerminal[_]] = nonTerminals.map{case (s:Syntax[_], id) => NonTerminal(s, id)}.toSet
-      // ???
     }
     
-    sealed trait LR1Parser[A] extends Parser[A] {
+    case class StackElem[A](state: Int, value: A) { val wtt = weakTypeTag[A] }
+    case class LR1Parser[A](stack: List[StackElem[_]]) extends Parser[A] {
       override def apply(tokens: Iterator[Token]): ParseResult[A] = ???
       
     }

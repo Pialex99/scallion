@@ -22,9 +22,6 @@ class JSONLL1ParserTests extends FlatSpec with Inside {
   def parse(text: String): Option[Value] =
     JSONParserLL1(JSONLexer(text.iterator)).getValue
 
-  def rest(text: String): JSONParserLL1.Syntax[Value] =
-    JSONParserLL1(JSONLexer(text.iterator)).rest.syntax
-
   "JSON Parser" should "parse some basic examples" in {
 
     inside(parse("1.0")) {
@@ -181,9 +178,6 @@ class JSONLR1ParserTests extends FlatSpec with Inside {
 
   def parse(text: String): Option[Value] =
     JSONParserLR1(JSONLexer(text.iterator)).getValue
-
-  def rest(text: String): JSONParserLR1.Syntax[Value] =
-    JSONParserLR1(JSONLexer(text.iterator)).rest.syntax
 
   "JSON Parser" should "parse some basic examples" in {
 
