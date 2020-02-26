@@ -31,11 +31,11 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
       case class NonTerminal[A](id: Id) extends Symbol[A]
 
       sealed trait Rule[A] { 
-        val id: Id 
+        val ntId: Id 
         val wtt: WeakTypeTag[A] = weakTypeTag[A]
       }
-      case class TransformRule[A, B](id: Id, f: B => A, symbol: NonTerminal[B]) extends Rule[A]
-      case class NormalRule[A](id: Id, symbols: Seq[Symbol[_]]) extends Rule[A]
+      case class TransformRule[A, B](ntId: Id, f: B => A, symbol: NonTerminal[B]) extends Rule[A]
+      case class NormalRule[A](ntId: Id, symbols: Seq[Symbol[_]]) extends Rule[A]
       
       type State = Int
     
@@ -184,10 +184,49 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
       ???
     }
     
-    case class StackElem[A](state: Int, value: A) { val wtt = weakTypeTag[A] }
-    case class LR1Parser[A](stack: List[StackElem[_]]) extends Parser[A] {
-      override def apply(tokens: Iterator[Token]): ParseResult[A] = ???
-      
+    type State = Int
+
+    case class StackElem[A](state: State, value: A, symbol: Symbol[A]) {
+      val wtt = weakTypeTag[A] 
+    }
+    class LR1Parser[A](actionTable: Array[Map[Kind, Action]], endTable: Array[Action], gotoTable: Array[Map[Id, State]]) extends Parser[A] {
+
+      private def getState(stack: List[StackElem[_]]): State = stack match {
+        case Nil => 0
+        case StackElem(state, _, _) :: _ => state
+      }
+
+      private def getAction(state: State, token: Token): Option[Action] = actionTable(state).get(getKind(token))
+
+      private def applyAction(stack: List[StackElem[_]], action: Option[Action], t: Token): Either[ParseResult[A], List[StackElem[_]]] = action match {
+        case None => Left(UnexpectedToken(t, actionTable(getState(stack)).keySet, this))
+        case Some(Done) => throw new RuntimeException("Table not correct")
+        case Some(Shift(nextState)) => Right(StackElem(nextState, t, Terminal(getKind(t)))::stack)
+        case Some(Reduce(NormalRule(ntId, symbols))) => 
+          val (elems, newStack) = stack.splitAt(symbols.size)
+          val newState = gotoTable(getState(newStack))(ntId)
+          val combinedElems = ???
+          applyAction(StackElem(newState, combinedElems, NonTerminal(ntId)) :: newStack, getAction(newState, t), t)
+        case Some(Reduce(r@TransformRule(ntId, f, _))) => ???
+      }
+
+      override def apply(tokens: Iterator[Token]): ParseResult[A] = {
+        var stack: List[StackElem[_]] = List()
+        while (tokens.hasNext) {
+          val t = tokens.next()
+          val tk = getKind(t)
+          val s = getState(stack)
+          val action = getAction(s, t) 
+          applyAction(stack, action, t) match {
+            case Left(value) => 
+              return value
+            case Right(value) => 
+              stack = value
+          }
+        }
+
+        ???
+      }
     }
   }
 }
