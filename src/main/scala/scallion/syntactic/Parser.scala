@@ -92,8 +92,9 @@ trait Parsing { self: Syntaxes =>
     *
     * The parser at the point of error is returned.
     *
-    * @param token The token at fault.
-    * @param rest  Parser at the point of error.
+    * @param token    The token at fault.
+    * @param expected The set of token that would have been accepted
+    * @param rest     Parser at the point of error.
     *
     * @group result
     */
@@ -103,7 +104,8 @@ trait Parsing { self: Syntaxes =>
     *
     * The `syntax` for subsequent input is provided.
     *
-    * @param syntax Syntax at the end of input.
+    * @param expected The set of token that would have been accepted
+    * @param syntax   Syntax at the end of input.
     *
     * @group result
     */
