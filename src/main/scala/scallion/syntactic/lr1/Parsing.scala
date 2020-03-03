@@ -4,7 +4,6 @@ package lr1
 import scallion.util.internal._
 import scallion.syntactic._
 import scala.collection.mutable.Queue
-import scala.reflect.runtime.universe._
 
 /** This trait implements LR(1) parsing. */
 trait LR1Parsing extends Parsing { self: Syntaxes =>
@@ -19,37 +18,99 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
     object LR1Conflict {
     }
 
+    /** 
+     * Contains the definitions and the function used to convert a syntax into a set of rules
+     */
     object grammar {
+      /** 
+       * Used to indentify non-terminal symbols 
+      */
       type Id = Int
       
-      sealed trait Symbol[A] {
-        val wtt: WeakTypeTag[A] = weakTypeTag[A]
-      } 
+      /**
+        * A symbol in a rule
+        */
+      sealed trait Symbol[A] 
 
+      /**
+        * The epsilon symbol
+        *
+        * @param value the value associated with it
+        */
       case class Epsilon[A](value: A) extends Symbol[A]
+      /**
+        * A terminal symbol
+        *
+        * @param kind the token kind that this terminal accepts
+        */
       case class Terminal(kind: Kind) extends Symbol[Token]
+      /**
+        * A non-terminal symbol
+        *
+        * @param id the id used to identify this non-terminal
+        */
       case class NonTerminal[A](id: Id) extends Symbol[A]
 
+      /**
+        * A trait for a grammar production rule
+        */
       sealed trait Rule[A] { 
+        /**
+          * the id of the non-terminal this rules is associated with
+          */
         val ntId: Id 
-        val wtt: WeakTypeTag[A] = weakTypeTag[A]
       }
-      case class TransformRule[A, B](ntId: Id, f: B => A, symbol: NonTerminal[B]) extends Rule[A]
-      case class NormalRule[A](ntId: Id, symbols: Seq[Symbol[_]]) extends Rule[A]
-      
-      type State = Int
-    
-      sealed trait Action 
-      case class Shift(nextState: State) extends Action
-      case class Reduce(rule: Rule[_]) extends Action
-      case object Done extends Action
+      /**
+        * A rule used to apply a transformation when reducing, it can only be applied to a single non-terminal
+        *
+        * @param ntId   the id of the non-terminal associated with this rule
+        * @param f      the mapping function to apply when reducing
+        * @param symbol the source symbol
+        */
+      case class TransformRule[A, B](ntId: Id, f: B => A, symbol: Symbol[B]) extends Rule[A]
+      /**
+        * A normal rule without transformation
+        *
+        * @param ntId    the id of the non-terminal associated with this rule
+        * @param symbols the sequence of symbols that the non-terminal expands to 
+        */
+      case class NormalRule0[A](ntId: Id, value: A) extends Rule[A]
+      case class NormalRule1[A](ntId: Id, symbol0: Symbol[A]) extends Rule[A]
+      case class NormalRule2[A, B](ntId: Id, symbol0: Symbol[A], symbol1: Symbol[B]) extends Rule[A~B]
+      // case class NormalRule3[A, B, C](ntId: Id, symbol0: Symbol[A], symbol1: Symbol[B], symbol2: Symbol[C]) extends Rule[A~B~C]
+      // case class NormalRule4[A, B, C, D](ntId: Id, symbol0: Symbol[A], symbol1: Symbol[B], symbol2: Symbol[C], symbol3: Symbol[D]) extends Rule[A~B~C~D]
+      // case class NormalRule5[A, B, C, D, E](ntId: Id, symbol0: Symbol[A], symbol1: Symbol[B], symbol2: Symbol[C], symbol3: Symbol[D], symbol4: Symbol[E]) extends Rule[A~B~C~D~E]
+      // case class NormalRule6[A, B, C, D, E, F](ntId: Id, symbol0: Symbol[A], symbol1: Symbol[B], symbol2: Symbol[C], symbol3: Symbol[D], symbol4: Symbol[E], symbol5: Symbol[F]) extends Rule[A~B~C~D~E~F]
+      // case class NormalRule7[A, B, C, D, E, F, G](ntId: Id, symbol0: Symbol[A], symbol1: Symbol[B], symbol2: Symbol[C], symbol3: Symbol[D], symbol4: Symbol[E], symbol5: Symbol[F], symbol6: Symbol[G]) extends Rule[A~B~C~D~E~F~G]
+      // case class NormalRule8[A, B, C, D, E, F, G, H](ntId: Id, symbol0: Symbol[A], symbol1: Symbol[B], symbol2: Symbol[C], symbol3: Symbol[D], symbol4: Symbol[E], symbol5: Symbol[F], symbol6: Symbol[G], symbol7: Symbol[H]) extends Rule[A~B~C~D~E~F~G~H]
+      // case class NormalRule9[A, B, C, D, E, F, G, H, I](ntId: Id, symbol0: Symbol[A], symbol1: Symbol[B], symbol2: Symbol[C], symbol3: Symbol[D], symbol4: Symbol[E], symbol5: Symbol[F], symbol6: Symbol[G], symbol7: Symbol[H], symbol8: Symbol[I]) extends Rule[A~B~C~D~E~F~G~H~I]
+      // case class NormalRule10[A, B, C, D, E, F, G, H, I, J](ntId: Id, symbol0: Symbol[A], symbol1: Symbol[B], symbol2: Symbol[C], symbol3: Symbol[D], symbol4: Symbol[E], symbol5: Symbol[F], symbol6: Symbol[G], symbol7: Symbol[H], symbol8: Symbol[I], symbol9: Symbol[J]) extends Rule[A~B~C~D~E~F~G~H~I~J]
 
+      /**
+        * Transform a `Syntax` into a sequence of rules
+        *
+        * @param syntax the syntax to transform
+        * @return       the sequence of rules
+        * 
+        * @note inspired form scallion.syntactic.visualization.Grammars
+        */
       def getRules[A](syntax: Syntax[A]) = {
         var nextId: Id = 1
         var rules = Vector[Rule[_]]()
         val queue = new Queue[Syntax[_]]
         var ids = Map[Syntax[_], Id]()
 
+        def newid[B](next: Syntax[B]): Id = {
+          if (!ids.contains(next)) {
+            val res = nextId
+            nextId += 1
+            ids += next -> res
+            res
+          }
+          else {
+            ids(next)
+          }
+        }
         def inspect[B](next: Syntax[B]): Id = {
           if (!ids.contains(next)) {
             val res = nextId
@@ -62,10 +123,24 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
             ids(next)
           }
         }
-        def getSymbols[B](next: Syntax[B]): Seq[Seq[Symbol[_]]] = next match {
-          case Disjunction(left, right) => getSymbols(left) ++ getSymbols(right)
-          case _ => Seq(getSequents(next))
+        def getRuleSeq[B](id: Id, s: Syntax[B]): Seq[Rule[B]] = s match {
+          case Disjunction(left, right) => getRuleSeq(id, left) ++ getRuleSeq(id, right)
+          case Sequence(left, right) => 
+            ???
+          case Elem(kind) => 
+            ???
+          case Failure() => 
+            ???
+          case r: Recursive[_] => 
+            ???
+          case Transform(f, _, inner) => 
+            val id1 = newid(s)
+            val id2 = inspect(inner)
+            Seq(NormalRule1(id, NonTerminal(id1)), TransformRule(id1, f, NonTerminal(id2)))
+          case Success(value, _) => 
+            Seq(NormalRule0(id, value))
         }
+        
         def getSequents[B](next: Syntax[B]): Seq[Symbol[_]] = next match {
           case Failure() => Seq()
           case Success(value, _) => Seq(Epsilon(value))
@@ -86,14 +161,14 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
         }
 
         inspect(syntax)
-        rules :+= NormalRule(0, Seq(NonTerminal(ids(syntax))))
+        rules :+= NormalRule1(0, NonTerminal(ids(syntax)))
 
         while (queue.nonEmpty) {
           val current = queue.dequeue()
-          rules ++= (current match {
-            case Transform(f, _, inner) => Seq(TransformRule(ids(current), f, NonTerminal(inspect(inner))))
-            case _ => getSymbols(current).map(NormalRule(ids(current), _))
-          })
+          rules ++= getRuleSeq(ids(current), current) //(current match {
+          //   case Transform(f, _, inner) => Seq(TransformRule(ids(current), f, NonTerminal(inspect(inner))))
+          //   case _ => getSymbols(current).map(NormalRule(ids(current), _))
+          // })
         }
         rules
       }
@@ -102,6 +177,11 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
     import grammar._
 
     object item {
+      type State = Int
+      sealed trait Action 
+      case class Shift(nextState: State) extends Action
+      case class Reduce(rule: Rule[_]) extends Action
+      case object Done extends Action
 
       type ItemSet = Seq[Item]
       case class Item(id: Id, prefix: Seq[Symbol[_]], postfix: Seq[Symbol[_]]) {
@@ -186,10 +266,40 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
     
     type State = Int
 
-    case class StackElem[A](state: State, value: A, symbol: Symbol[A]) {
-      val wtt = weakTypeTag[A] 
+    object stack {
+      sealed trait CombinedElems[A]
+
+      case class Single[A](value: A) extends CombinedElems[A]
+      case class Tuple[A, B](value:A, rest:CombinedElems[B]) extends CombinedElems[A ~ B]
+
+      sealed trait Stack[A] {
+        val state: State
+        def combine(n: Int): Option[CombinedElems[A]]
+      }
+
+      case class EmptyStack[A]() extends Stack[A] { 
+        val state = 0
+        override def combine(n: Int): Option[CombinedElems[A]] = None
+      }
+
+      case class ConsStack[A, B](
+        head: StackElem[A],
+        tail: Stack[B]
+      ) extends Stack[A ~ B] { 
+        val state = head.state
+        override def combine(n: Int): Option[CombinedElems[A ~ B]] = 
+          if (n == 1)
+            Some(Single(head.value))
+          else
+            combine(n - 1) map ()
+      }
+
+      case class StackElem[A](state: State, value: A, symbol: Symbol[A])
     }
-    class LR1Parser[A](actionTable: Array[Map[Kind, Action]], endTable: Array[Action], gotoTable: Array[Map[Id, State]]) extends Parser[A] {
+
+    import stack._
+
+    class LR1Parser[A](actionTable: Vector[Map[Kind, Action]], endTable: Vector[Action], gotoTable: Vector[Map[Id, State]]) extends Parser[A] {
 
       private def getState(stack: List[StackElem[_]]): State = stack match {
         case Nil => 0
@@ -202,12 +312,20 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
         case None => Left(UnexpectedToken(t, actionTable(getState(stack)).keySet, this))
         case Some(Done) => throw new RuntimeException("Table not correct")
         case Some(Shift(nextState)) => Right(StackElem(nextState, t, Terminal(getKind(t)))::stack)
-        case Some(Reduce(NormalRule(ntId, symbols))) => 
+        case Some(Reduce(r@NormalRule(ntId, symbols))) => 
           val (elems, newStack) = stack.splitAt(symbols.size)
           val newState = gotoTable(getState(newStack))(ntId)
-          val combinedElems = ???
+          def combine(xs0: List[_]): _~_ = xs0 match {
+            case Nil => throw new RuntimeException("Unexpected Nil found")
+            case x0 :: x1 :: Nil => x1 ~ x0
+            case x :: xs => combine(xs) ~ x
+          }
+          val combinedElems = ???//combine(elems).asInstanceOf[r.wtt.type]
           applyAction(StackElem(newState, combinedElems, NonTerminal(ntId)) :: newStack, getAction(newState, t), t)
-        case Some(Reduce(r@TransformRule(ntId, f, _))) => ???
+        case Some(Reduce(r@TransformRule(ntId, f, _))) => 
+          val (h::tail) = stack
+          ???
+
       }
 
       override def apply(tokens: Iterator[Token]): ParseResult[A] = {
