@@ -21,14 +21,16 @@ import scallion.syntactic._
 
 object CalculatorTokens {
   sealed trait Token
+  case class Id(id: Int) extends Token
   case class Num(value: Int) extends Token
   case object Plus extends Token
   case object Times extends Token
 
   sealed trait TokenClass
-  case object NumClass extends TokenClass
-  case object PlusClass extends TokenClass
-  case object TimesClass extends TokenClass
+  object IdClass extends TokenClass
+  object NumClass extends TokenClass
+  object PlusClass extends TokenClass
+  object TimesClass extends TokenClass
 }
 
 import CalculatorTokens._
@@ -41,6 +43,7 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
   import SafeImplicits._
 
   override def getKind(token: Token): TokenClass = token match {
+    case Id(_) => IdClass
     case Num(_) => NumClass
     case Plus => PlusClass
     case Times => TimesClass
@@ -49,19 +52,36 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
   import Syntax._
   import Implicits._
   
-  val b: Syntax[Int] = accept(NumClass) { case Num(n) => n }
-
-  val e: Syntax[Int] = oneOf(
-    (recursive(e) ~ elem(PlusClass).skip ~ b) map {
-      case n1 ~ n2 => n1 + n2
-    },
-    (recursive(e) ~ elem(TimesClass).skip ~ b) map {
-      case n1 ~ n2 => n1 * n2
-    },
-    b
+  val sums: Syntax[Int] = recursive(
+    (sums ~ elem(PlusClass) ~ products).map {
+      case n1 ~ _ ~ n2 => n1 + n2
+    } | products
   )
+  val products: Syntax[Int] = recursive(
+    (products ~ elem(TimesClass) ~ value).map {
+      case n1 ~ _ ~ n2 => n1 * n2 
+    } | value
+  )
+  val idValues = (id: Int) => id + 1
+  val value: Syntax[Int] = elem(NumClass).map { case Num(n) => n } |
+    elem(IdClass).map { case Id(id) =>  idValues(id) }
 
-  val parser = LR1(e)
+  //val parser = LR1(sums)
+
+  import LR1._
+  import LR1.grammar._
+  import LR1.stack._
+  import LR1.item._
+  val actionTable: Vector[Map[Option[Kind], Action]] = Vector(
+    Map(Some(NumClass) -> Shift(8), Some(IdClass) -> Shift(9)),
+    Map(Some(PlusClass) -> Shift(2), None -> Done),
+    Map(Some(NumClass) -> Shift(8), Some(IdClass) -> Shift(9)),
+    Map(Some(TimesClass) -> Shift(5), Some(PlusClass) -> Reduce(???))
+  )
+  val gotoTable: Vector[Map[Id, State]] = Vector(
+
+  )
+  val handMaidParser = LR1Parser(EmptyStack)(actionTable, gotoTable)
 
   "hello" should "say" in {
     assert(true)

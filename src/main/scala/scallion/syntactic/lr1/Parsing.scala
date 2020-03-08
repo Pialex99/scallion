@@ -253,31 +253,20 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
     type State = Int
 
     object stack {
-      sealed trait CombinedElems[A]
-
-      case class Single[A](value: A) extends CombinedElems[A]
-      case class Tuple[A, B](value:A, rest:CombinedElems[B]) extends CombinedElems[A ~ B]
-
-      sealed trait Stack[A] {
+      sealed trait Stack {
         val state: State
-        def combine(n: Int): Option[CombinedElems[A]]
       }
 
-      case class EmptyStack[A]() extends Stack[A] { 
+      object EmptyStack extends Stack { 
         val state = 0
-        override def combine(n: Int): Option[CombinedElems[A]] = None
       }
 
-      case class ConsStack[A, B](
+      case class ConsStack[A](
         head: StackElem[A],
-        tail: Stack[B]
-      ) extends Stack[A ~ B] { 
+        tail: Stack
+      ) extends Stack { 
+        type headType = A
         val state = head.state
-        override def combine(n: Int): Option[CombinedElems[A ~ B]] = ???
-          // if (n == 1)
-          //   Some(Single(head.value))
-          // else
-          //   combine(n - 1) map ()
       }
 
       case class StackElem[A](state: State, value: A, symbol: Symbol[A])
@@ -285,50 +274,70 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
 
     import stack._
 
-    class LR1Parser[A](actionTable: Vector[Map[Kind, Action]], endTable: Vector[Action], gotoTable: Vector[Map[Id, State]]) extends Parser[A] {
+    // token = None means EOF
 
-      private def getState(stack: List[StackElem[_]]): State = stack match {
-        case Nil => 0
-        case StackElem(state, _, _) :: _ => state
+    case class LR1Parser[A](startingStack: Stack = EmptyStack)(implicit actionTable: Vector[Map[Option[Kind], Action]], gotoTable: Vector[Map[Id, State]]) extends Parser[A] {
+
+      private def getAction(state: State, token: Option[Token]): Option[Action] = actionTable(state).get(token map getKind)
+
+      private def getExpecte(stack: Stack) = actionTable(stack.state).keySet.collect { case Some(token) => token }
+
+      private def applyAction(stack: Stack, opt: Option[Token]): Either[ParseResult[A], Stack] = (getAction(stack.state, opt), opt) match {
+        case (None, Some(t)) => 
+          Left(
+            UnexpectedToken(t, getExpecte(stack), LR1Parser(stack))
+          )
+        case (None, None) =>
+          Left(
+            UnexpectedEnd(getExpecte(stack), LR1Parser(stack))
+          )
+        case (Some(Done), None) => stack match {
+          case s: ConsStack[A] => 
+            val ConsStack(StackElem(_, v, _), EmptyStack) = s
+            Left(Parsed(v, LR1Parser(EmptyStack)))
+        }
+        case (Some(Done), _) =>
+          throw new RuntimeException("ActionTable not correct !")
+        case (Some(Shift(nextState)), Some(t)) => 
+          Right(
+            ConsStack(StackElem(nextState, t, Terminal(getKind(t))), stack)
+          )
+        case (Some(Reduce(NormalRule0(ntId, value))), _) => 
+          applyAction(
+            ConsStack(StackElem(stack.state, value, NonTerminal(ntId)), stack), opt
+          )
+        case (Some(Reduce(NormalRule1(ntId, _))), _) => 
+          val ConsStack(StackElem(_, v, _), rest) = stack
+          val newState = gotoTable(rest.state)(ntId)
+          applyAction(
+            ConsStack(StackElem(newState, v, NonTerminal(ntId)), rest), opt
+          )
+        case (Some(Reduce(NormalRule2(ntId, _, _))), _) => 
+          val ConsStack(StackElem(_, v0, _), ConsStack(StackElem(_, v1, _), rest)) = stack
+          val newState = gotoTable(rest.state)(ntId)
+          val combinedElems = (v0, v1)
+          applyAction(
+            ConsStack(StackElem(newState, combinedElems, NonTerminal(ntId)), rest), opt
+          )
+        case (Some(Reduce(tr: TransformRule[tA, tB])), _) => 
+          val ConsStack(StackElem(_, v:tB, _), rest) = stack
+          val newState = gotoTable(rest.state)(tr.ntId)
+          val transformedValue: tA = tr.f(v)
+          applyAction(
+            ConsStack(StackElem(newState, transformedValue, NonTerminal(tr.ntId)), rest), opt
+          )
+        case (Some(Reduce(FailureRule(ntid))), Some(t)) => 
+          Left(
+            UnexpectedToken(t, Set(), LR1Parser(stack))
+          )
       }
 
-      private def getAction(state: State, token: Token): Option[Action] = actionTable(state).get(getKind(token))
-
-      private def applyAction(stack: List[StackElem[_]], action: Option[Action], t: Token): Either[ParseResult[A], List[StackElem[_]]] = ??? //action match {
-      //   case None => Left(UnexpectedToken(t, actionTable(getState(stack)).keySet, this))
-      //   case Some(Done) => throw new RuntimeException("Table not correct")
-      //   case Some(Shift(nextState)) => Right(StackElem(nextState, t, Terminal(getKind(t)))::stack)
-      //   case Some(Reduce(r@NormalRule1(ntId, symbols))) => 
-      //     val (elems, newStack) = stack.splitAt(symbols.size)
-      //     val newState = gotoTable(getState(newStack))(ntId)
-      //     def combine(xs0: List[_]): _~_ = xs0 match {
-      //       case Nil => throw new RuntimeException("Unexpected Nil found")
-      //       case x0 :: x1 :: Nil => x1 ~ x0
-      //       case x :: xs => combine(xs) ~ x
-      //     }
-      //     val combinedElems = ???//combine(elems).asInstanceOf[r.wtt.type]
-      //     applyAction(StackElem(newState, combinedElems, NonTerminal(ntId)) :: newStack, getAction(newState, t), t)
-      //   case Some(Reduce(r@TransformRule(ntId, f, _))) => 
-      //     val (h::tail) = stack
-      //     ???
-      // }
-
       override def apply(tokens: Iterator[Token]): ParseResult[A] = {
-        var stack: List[StackElem[_]] = List()
-        while (tokens.hasNext) {
-          val t = tokens.next()
-          val tk = getKind(t)
-          val s = getState(stack)
-          val action = getAction(s, t) 
-          applyAction(stack, action, t) match {
-            case Left(value) => 
-              return value
-            case Right(value) => 
-              stack = value
-          }
+        val result0 = tokens.foldLeft[Either[ParseResult[A], Stack]](Right(startingStack)) {
+          case (eitherStack, t) => eitherStack.flatMap(stack => applyAction(stack, Some(t)))
         }
-
-        ???
+        val Left(res) = result0.flatMap(stack => applyAction(stack, None))
+        res
       }
     }
   }
