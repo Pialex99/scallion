@@ -257,7 +257,7 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
         val state: State
       }
 
-      object EmptyStack extends Stack { 
+      case object EmptyStack extends Stack { 
         val state = 0
       }
 
@@ -315,7 +315,7 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
         case (Some(Reduce(NormalRule2(ntId, _, _))), _) => 
           val ConsStack(StackElem(_, v0, _), ConsStack(StackElem(_, v1, _), rest)) = stack
           val newState = gotoTable(rest.state)(ntId)
-          val combinedElems = (v0, v1)
+          val combinedElems = v1 ~ v0
           applyAction(
             ConsStack(StackElem(newState, combinedElems, NonTerminal(ntId)), rest), opt
           )
