@@ -4,6 +4,7 @@ package lr1
 import scallion.util.internal._
 import scallion.syntactic._
 import scala.collection.mutable.Queue
+import scala.annotation.tailrec
 
 /** This trait implements LR(1) parsing. */
 trait LR1Parsing extends Parsing { self: Syntaxes =>
@@ -16,6 +17,8 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
       * @group conflict
       */
     object LR1Conflict {
+      case class ReduceReduce(source: Syntax.Disjunction[_]) extends Conflict
+      case class ShiftReduce(source: Syntax.Disjunction[_]) extends Conflict
     }
 
     /** 
@@ -282,6 +285,7 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
 
       private def getExpecte(stack: Stack) = actionTable(stack.state).keySet.collect { case Some(token) => token }
 
+      @tailrec
       private def applyAction(stack: Stack, opt: Option[Token]): Either[ParseResult[A], Stack] = (getAction(stack.state, opt), opt) match {
         case (None, Some(t)) => 
           Left(
@@ -303,8 +307,9 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
             ConsStack(StackElem(nextState, t, Terminal(getKind(t))), stack)
           )
         case (Some(Reduce(NormalRule0(ntId, value))), _) => 
+          val newState = gotoTable(stack.state)(ntId)
           applyAction(
-            ConsStack(StackElem(stack.state, value, NonTerminal(ntId)), stack), opt
+            ConsStack(StackElem(newState, value, NonTerminal(ntId)), stack), opt
           )
         case (Some(Reduce(NormalRule1(ntId, _))), _) => 
           val ConsStack(StackElem(_, v, _), rest) = stack

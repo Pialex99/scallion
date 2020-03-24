@@ -40,17 +40,12 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
   type Token = CalculatorTokens.Token
   type Kind = CalculatorTokens.TokenClass
 
-  import SafeImplicits._
-
   override def getKind(token: Token): TokenClass = token match {
     case Id(_) => IdClass
     case Num(_) => NumClass
     case Plus => PlusClass
     case Times => TimesClass
   }
-
-  import Syntax._
-  import Implicits._
 
   import LR1._
   import LR1.grammar._
@@ -162,19 +157,21 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
     }
   }
 
-  val sums: Syntax[Int] = recursive(
-    (sums ~ elem(PlusClass) ~ products).map {
-      case n1 ~ _ ~ n2 => n1 + n2
-    } | products
-  )
-  val products: Syntax[Int] = recursive(
-    (products ~ elem(TimesClass) ~ value).map {
-      case n1 ~ _ ~ n2 => n1 * n2 
-    } | value
-  )
   val idValues = (id: Int) => id + 1
   val value: Syntax[Int] = accept(NumClass) { case Num(n) => n } |
     accept(IdClass) { case Id(id) =>  idValues(id) }
+
+  val products: Syntax[Int] = 
+    (recursive(products) ~ elem(TimesClass) ~ value).map {
+      case n1 ~ _ ~ n2 => n1 * n2 
+    } | value
+
+  val sums: Syntax[Int] = 
+    (recursive(sums) ~ elem(PlusClass) ~ products).map {
+      case n1 ~ _ ~ n2 => n1 + n2
+    } | products
+  
+
 
   //val parser = LR1(sums)
 
