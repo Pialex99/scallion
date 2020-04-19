@@ -171,9 +171,129 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
       case n1 ~ _ ~ n2 => n1 + n2
     } | products
   
+  val parser = LR1(sums)
 
+  "LR1 parser" should "1 = 1" in {
+    val result = parser(List(Num(1)).toIterator)
+    assert(result.getValue == Some(1))
+  }
 
-  //val parser = LR1(sums)
+  it should "2 + 5 = 7" in {
+    val result = parser(List(Num(2), Plus, Num(5)).toIterator)
+    assert(result.getValue == Some(7))
+  }
+  
+  it should "4 + 3 + 8 = 15" in {
+    val result = parser(List(Num(4), Plus, Num(3), Plus, Num(8)).toIterator)
+    assert(result.getValue == Some(15))
+  }
+  
+  it should "2 * 3 = 6" in {
+    val result = parser(List(Num(2), Times, Num(3)).toIterator)
+    assert(result.getValue == Some(6))
+  }
+
+  it should "4 * 3 * 7 = 84" in {
+    val result = parser(List(Num(4), Times, Num(3), Times, Num(7)).toIterator)
+    assert(result.getValue == Some(84))
+  }
+
+  it should "3 * 5 + 4 = 19" in {
+    val result = parser(List(Num(3), Times, Num(5), Plus, Num(4)).toIterator)
+    assert(result.getValue == Some(19))
+  }
+
+  it should "8 + 4 * 7 = 36" in {
+    val result = parser(List(Num(8), Plus, Num(4), Times, Num(7)).toIterator)
+    assert(result.getValue == Some(36))
+  }
+
+  it should "7 + 1 * 6 + 3 = 16" in {
+    val result = parser(List(Num(7), Plus, Num(1), Times, Num(6), Plus, Num(3)).toIterator)
+    assert(result.getValue == Some(16))
+  }
+
+   it should "7 * 2 + 4 * 1 * 6 + 3 = 41" in {
+    val result = parser(List(Num(7), Times, Num(2), Plus, Num(4), Times, Num(1), Times, Num(6), Plus, Num(3)).toIterator)
+    assert(result.getValue == Some(41))
+  }
+
+  it should "fails for +" in {
+    val result = parser(List(Plus).iterator)
+    assert(result.getValue == None)
+    result match {
+      case UnexpectedToken(Plus, expected, rest) => 
+        assert(expected == Set(NumClass, IdClass))
+        assert(rest(List(Num(1)).iterator).getValue == Some(1))
+      case _ => fail()
+    }
+  }
+
+  it should "fails for 1 +" in {
+    val result = parser(List(Num(1), Plus).iterator)
+    assert(result.getValue == None)
+    result match {
+      case UnexpectedEnd(expected, rest) => 
+        assert(expected == Set(NumClass, IdClass))
+        assert(rest(List(Num(4)).iterator).getValue == Some(5))
+      case _ => fail()
+    }
+  }
+
+  it should "fails for 2 *" in {
+    val result = parser(List(Num(2), Times).iterator)
+    assert(result.getValue == None)
+    result match {
+      case UnexpectedEnd(expected, rest) => 
+        assert(expected == Set(NumClass, IdClass))
+        assert(rest(List(Num(4)).iterator).getValue == Some(8))
+      case _ => fail()
+    }
+  }
+
+  it should "fails for 2 + 5 *" in {
+    val result = parser(List(Num(2), Plus, Num(5), Times).iterator)
+    assert(result.getValue == None)
+    result match {
+      case UnexpectedEnd(expected, rest) => 
+        assert(expected == Set(NumClass, IdClass))
+        assert(rest(List(Num(3)).iterator).getValue == Some(17))
+      case _ => fail()
+    }
+  }
+
+  it should "fails for 3 + +" in {
+    val result = parser(List(Num(3), Plus, Plus).iterator)
+    assert(result.getValue == None)
+    result match {
+      case UnexpectedToken(Plus, expected, rest) => 
+        assert(expected == Set(NumClass, IdClass))
+        assert(rest(List(Num(4)).iterator).getValue == Some(7))
+      case _ => fail()
+    }
+  }
+
+  it should "fails for 3 * +" in {
+    val result = parser(List(Num(3), Times, Plus).iterator)
+    assert(result.getValue == None)
+    result match {
+      case UnexpectedToken(Plus, expected, rest) => 
+        assert(expected == Set(NumClass, IdClass))
+        assert(rest(List(Num(4)).iterator).getValue == Some(12))
+      case _ => fail()
+    }
+  }
+
+  it should "fails for 3 4" in {
+    val result = parser(List(Num(3), Num(4)).iterator)
+    assert(result.getValue == None)
+    result match {
+      case UnexpectedToken(Num(4), expected, rest) => 
+        assert(expected == Set(PlusClass, TimesClass))
+        assert(rest(Nil.iterator).getValue == Some(3))
+      case _ => fail()
+    }
+  }
 
   /*
     r1  : 0 -> 1
