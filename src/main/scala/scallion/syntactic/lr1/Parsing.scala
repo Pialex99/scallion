@@ -247,7 +247,7 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
       def generateTables(implicit rulesById: Map[Id, Vector[Rule]], firstSets: Map[Id, Set[Option[Kind]]], nullable: Map[Id, Boolean])
         : (Set[Conflict], State => Map[Option[Kind], Action], State => Id => State) = {
           var conflicts: Set[Conflict] = Set()
-          var nextState = 1
+          var nextState = 0
           var itemSetToState: Map[ItemSet, State] = Map()
           val queue: Queue[ItemSet] = Queue()
           getStateFor(Set(getFirstItem(rulesById(0)(0), Set(None))))
@@ -275,42 +275,37 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
             }
             val shifts: Map[Option[Kind], Action] = grouped.collect { 
               case (Some(Terminal(kind)), set) => 
-                Some(kind) -> Shift(getStateFor(set))
-                // val closed = close(set) 
-                // if (itemSetToState.contains(closed))
-                //   Some(kind) -> Shift(itemSetToState(closed))
-                // else {
-                //   val newState = nextState
-                //   nextState += 1
-                //   itemSetToState += closed -> newState
-                //   queue.enqueue(closed)
-                //   Some(kind) -> Shift(newState)
-                // } 
-              }
+                Some(kind) -> Shift(getStateFor(set map {
+                  case Item10(id, rule, followBy, parsed) => 
+                    Item11(id, rule, followBy, parsed)
+                  case Item20(id, rule, followBy, parsed, follow) => 
+                    Item21(id, rule, followBy, parsed, follow)
+                  case Item21(id, rule, followBy, parsed1, parsed2) => 
+                    Item22(id, rule, followBy, parsed1, parsed2)
+                }))
+            }
             val goto = grouped.collect {
               case (Some(NonTerminal(id)), set) =>
-                id -> getStateFor(set)
-                // val closed = close(set) 
-                // if (itemSetToState.contains(closed))
-                //   id -> itemSetToState(closed)
-                // else {
-                //   val newState = nextState
-                //   nextState += 1
-                //   itemSetToState += closed -> newState
-                //   queue.enqueue(closed)
-                //   id -> newState
-                // } 
+                id -> getStateFor(set map {
+                  case Item10(id, rule, followBy, parsed) => 
+                    Item11(id, rule, followBy, parsed)
+                  case Item20(id, rule, followBy, parsed, follow) => 
+                    Item21(id, rule, followBy, parsed, follow)
+                  case Item21(id, rule, followBy, parsed1, parsed2) => 
+                    Item22(id, rule, followBy, parsed1, parsed2)
+                })
             }
             val reduces: Map[Option[Kind], Action] = grouped.getOrElse(None, Set()).flatMap { item => item.followBy map (_ -> Reduce(item.rule)) }.groupBy(_._1).map {
               case (kind, reducesSet) => 
                 if (reducesSet.size > 1) {
                   conflicts += ReduceReduce(null, kind) 
                 }
-                reducesSet.head
+                if (reducesSet.head._2.rule == rulesById(0)(0)) kind -> Done
+                else reducesSet.head
             }
-            val union = reduces.keySet union shifts.keySet
-            if (!union.isEmpty) {
-              conflicts ++= union map (kind => ShiftReduce(null, kind))
+            val intersect = reduces.keySet intersect shifts.keySet
+            if (!intersect.isEmpty) {
+              conflicts ++= intersect map (kind => ShiftReduce(null, kind))
             }
             (shifts ++ reduces, goto)
           }
@@ -366,7 +361,7 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
       implicit val (rulesById, (firstSets, nullable)) = getRules(syntax)
       val (conflicts, actionTable, gotoTable) = generateTables
       if (enforceLR1 && !conflicts.isEmpty) 
-        {conflicts foreach println; throw ConflictException(conflicts)}
+        throw ConflictException(conflicts)
       else 
         LR1Parser(EmptyStack)(actionTable, gotoTable)
     }
@@ -393,9 +388,9 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
           case s: ConsStack[A] =>
             val ConsStack(StackElem(_, v, _), EmptyStack) = s
             Left(Parsed(v, LR1Parser(EmptyStack)))
+          case EmptyStack => 
+            throw new RuntimeException("No value left !")
         }
-        case (Some(Done), _) =>
-          throw new RuntimeException("ActionTable not correct !")
         case (Some(Shift(nextState)), Some(t)) =>
           Right(
             ConsStack(StackElem(nextState, t, Terminal(getKind(t))), stack)
@@ -429,6 +424,8 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
           Left(
             UnexpectedToken(t, Set(), LR1Parser(stack))
           )
+        case (_, _) =>
+          throw new RuntimeException("ActionTable not correct !")
       }
 
       override def apply(tokens: Iterator[Token]): ParseResult[A] = {
