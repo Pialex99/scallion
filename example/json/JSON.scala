@@ -224,10 +224,10 @@ object JSONParser extends Syntaxes with ll1.LL1Parsing with Enumeration {
 
   // Turn the iterator of tokens into a value, if possible.
   def apply(it: Iterator[Token]): Either[String, Value] = parser(it) match {
-    case LL1.Parsed(value, rest) => Right(value)  // The parse was successful.
-    case LL1.UnexpectedToken(token, rest) =>  // The parse was unsuccessful due to a wrong token.
-      Left("Unexpected " + token + ", expected one of " + rest.first.mkString(", "))
-    case LL1.UnexpectedEnd(rest) =>  // The parse was unsuccessful due to the end of input.
+    case Parsed(value, rest) => Right(value)  // The parse was successful.
+    case UnexpectedToken(token, expected, rest) =>  // The parse was unsuccessful due to a wrong token.
+      Left("Unexpected " + token + ", expected one of " + expected.mkString(", "))
+    case UnexpectedEnd(expected, rest: LL1.LL1Parser[_]) =>  // The parse was unsuccessful due to the end of input.
       Left("Unexpected end of input. Quickest way to end is \"" +
         Enumerator.enumerate(rest.syntax).next().mkString("") + "\"")
   }
