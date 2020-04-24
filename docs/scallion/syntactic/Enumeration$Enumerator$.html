@@ -134,8 +134,20 @@ See the package <a href="../index.html" class="extype" name="scallion">scallion<
       <p class="shortcomment cmt">Provides enumeration capabilites to syntaxes.</p><div class="fullcomment"><div class="comment cmt"><p>Provides enumeration capabilites to syntaxes.</p></div><dl class="attributes block"> <dt>Definition Classes</dt><dd><a href="index.html" class="extype" name="scallion.syntactic">syntactic</a></dd></dl></div>
     </li><li class="current-entities indented3">
                         <span class="separator"></span>
-                        <a class="object" href="" title="Enumerator object."></a>
-                        <a href="" title="Enumerator object.">Enumerator</a>
+                        <a class="object" href="" title="Enumerator."></a>
+                        <a href="" title="Enumerator.">Enumerator</a>
+                      </li><li class="current-entities indented3">
+                        <span class="separator"></span>
+                        <a class="object" href="Enumeration$HoleEnumerator$.html" title="Enumerator which replaces kind sequences of marked syntaxes by holes."></a>
+                        <a href="Enumeration$HoleEnumerator$.html" title="Enumerator which replaces kind sequences of marked syntaxes by holes.">HoleEnumerator</a>
+                      </li><li class="current-entities indented3">
+                        <a class="object" href="Enumeration$HoledSeq$.html" title="Factory of sequences with holes."></a>
+                        <a class="class" href="Enumeration$HoledSeq.html" title="Sequence with holes."></a>
+                        <a href="Enumeration$HoledSeq.html" title="Sequence with holes.">HoledSeq</a>
+                      </li><li class="current-entities indented3">
+                        <span class="separator"></span>
+                        <a class="object" href="Enumeration$NonReentrantEnumerator$.html" title="Enumerator which doesn't reenter recursive syntaxes."></a>
+                        <a href="Enumeration$NonReentrantEnumerator$.html" title="Enumerator which doesn't reenter recursive syntaxes.">NonReentrantEnumerator</a>
                       </li>
               </ul>
             </div>
@@ -164,7 +176,7 @@ See the package <a href="../index.html" class="extype" name="scallion">scallion<
       </h4>
 
       
-          <div id="comment" class="fullcommenttop"><div class="comment cmt"><p>Enumerator object.</p></div><dl class="attributes block"> <dt>Source</dt><dd><a href="https://raw.githubusercontent.com/epfl-lara/scallion/master/src/main/scala/scallion/syntactic/Enumeration.scala" target="_blank">Enumeration.scala</a></dd></dl><div class="toggleContainer block">
+          <div id="comment" class="fullcommenttop"><div class="comment cmt"><p>Enumerator.</p></div><dl class="attributes block"> <dt>Source</dt><dd><a href="https://raw.githubusercontent.com/epfl-lara/scallion/master/src/main/scala/scallion/syntactic/Enumeration.scala" target="_blank">Enumeration.scala</a></dd></dl><div class="toggleContainer block">
           <span class="toggle">
             Linear Supertypes
           </span>
@@ -269,23 +281,6 @@ See the package <a href="../index.html" class="extype" name="scallion">scallion<
       </span>
       
       <div class="fullcomment"><dl class="attributes block"> <dt>Definition Classes</dt><dd>AnyRef → Any</dd></dl></div>
-    </li><li name="scallion.syntactic.Enumeration.Enumerator#apply" visbl="pub" class="indented0 " data-isabs="false" fullComment="yes" group="Ungrouped">
-      <a id="apply[A](syntax:Enumeration.this.Syntax[A]):Iterator[Seq[Enumeration.this.Kind]]"></a><a id="apply[A]((Enumeration.this)#Syntax[A]):Iterator[Seq[(Enumeration.this)#Kind]]"></a>
-      <span class="permalink">
-      <a href="../../scallion/syntactic/Enumeration$Enumerator$.html#apply[A](syntax:Enumeration.this.Syntax[A]):Iterator[Seq[Enumeration.this.Kind]]" title="Permalink">
-        <i class="material-icons"></i>
-      </a>
-    </span>
-      <span class="modifier_kind">
-        <span class="modifier"></span>
-        <span class="kind">def</span>
-      </span>
-      <span class="symbol">
-        <span class="name">apply</span><span class="tparams">[<span name="A">A</span>]</span><span class="params">(<span name="syntax">syntax: (<a href="Enumeration.html" class="extype" name="scallion.syntactic.Enumeration">Enumeration</a>.this)#<span class="extype" name="scallion.syntactic.Syntaxes.Syntax">Syntax</span>[<span class="extype" name="scallion.syntactic.Enumeration.Enumerator.apply.A">A</span>]</span>)</span><span class="result">: <span class="extype" name="scala.Iterator">Iterator</span>[<span class="extype" name="scala.Seq">Seq</span>[(<a href="Enumeration.html" class="extype" name="scallion.syntactic.Enumeration">Enumeration</a>.this)#<span class="extype" name="scallion.syntactic.Syntaxes.Kind">Kind</span>]]</span>
-      </span>
-      
-      <p class="shortcomment cmt">Enumerates the sequences accepted by a syntax.</p><div class="fullcomment"><div class="comment cmt"><p>Enumerates the sequences accepted by a syntax.</p><p>The sequences are produced lazily and in order of increasing length.
-</p></div></div>
     </li><li name="scala.Any#asInstanceOf" visbl="pub" class="indented0 " data-isabs="false" fullComment="yes" group="Ungrouped">
       <a id="asInstanceOf[T0]:T0"></a>
       <span class="permalink">
@@ -326,6 +321,23 @@ See the package <a href="../index.html" class="extype" name="scallion">scallion<
     </span>)</span>
               
         </dd></dl></div>
+    </li><li name="scallion.syntactic.Enumeration.Enumerator#enumerate" visbl="pub" class="indented0 " data-isabs="false" fullComment="yes" group="Ungrouped">
+      <a id="enumerate[A](syntax:Enumeration.this.Syntax[A]):Iterator[Seq[Enumeration.this.Kind]]"></a><a id="enumerate[A]((Enumeration.this)#Syntax[A]):Iterator[Seq[(Enumeration.this)#Kind]]"></a>
+      <span class="permalink">
+      <a href="../../scallion/syntactic/Enumeration$Enumerator$.html#enumerate[A](syntax:Enumeration.this.Syntax[A]):Iterator[Seq[Enumeration.this.Kind]]" title="Permalink">
+        <i class="material-icons"></i>
+      </a>
+    </span>
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">def</span>
+      </span>
+      <span class="symbol">
+        <span class="name">enumerate</span><span class="tparams">[<span name="A">A</span>]</span><span class="params">(<span name="syntax">syntax: (<a href="Enumeration.html" class="extype" name="scallion.syntactic.Enumeration">Enumeration</a>.this)#<span class="extype" name="scallion.syntactic.Syntaxes.Syntax">Syntax</span>[<span class="extype" name="scallion.syntactic.Enumeration.Enumerator.enumerate.A">A</span>]</span>)</span><span class="result">: <span class="extype" name="scala.Iterator">Iterator</span>[<span class="extype" name="scala.Seq">Seq</span>[(<a href="Enumeration.html" class="extype" name="scallion.syntactic.Enumeration">Enumeration</a>.this)#<span class="extype" name="scallion.syntactic.Syntaxes.Kind">Kind</span>]]</span>
+      </span>
+      
+      <p class="shortcomment cmt">Enumerates the sequences accepted by a syntax.</p><div class="fullcomment"><div class="comment cmt"><p>Enumerates the sequences accepted by a syntax.</p><p>The sequences are produced lazily and in order of increasing length.
+</p></div></div>
     </li><li name="scala.AnyRef#eq" visbl="pub" class="indented0 " data-isabs="false" fullComment="yes" group="Ungrouped">
       <a id="eq(x$1:AnyRef):Boolean"></a><a id="eq(AnyRef):Boolean"></a>
       <span class="permalink">

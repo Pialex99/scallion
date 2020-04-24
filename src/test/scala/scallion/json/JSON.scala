@@ -123,7 +123,7 @@ object JSONParserLL1 extends Syntaxes with ll1.LL1Parsing {
   type Token = scallion.json.Token
   type Kind = TokenClass
 
-  import SafeImplicits._
+  import Implicits._
 
   override def getKind(token: Token): TokenClass = token match {
     case SeparatorToken(value, _) => SeparatorClass(value)
@@ -153,7 +153,7 @@ object JSONParserLL1 extends Syntaxes with ll1.LL1Parsing {
   implicit def separator(char: Char): Syntax[Token] = elem(SeparatorClass(char))
 
   lazy val arrayValue: Syntax[Value] =
-    ('[' ~ repsep(value, ','.unit()) ~ ']').map {
+    ('[' ~ repsep(value, ',') ~ ']').map {
       case start ~ vs ~ end => ArrayValue(vs, (start.range._1, end.range._2))
     }
 
@@ -163,7 +163,7 @@ object JSONParserLL1 extends Syntaxes with ll1.LL1Parsing {
     }
 
   lazy val objectValue: Syntax[Value] =
-    ('{' ~ repsep(binding, ','.unit()) ~ '}').map {
+    ('{' ~ repsep(binding, ',') ~ '}').map {
       case start ~ bs ~ end => ObjectValue(bs, (start.range._1, end.range._2))
     }
 
@@ -181,7 +181,7 @@ object JSONParserLR1 extends Syntaxes with lr1.LR1Parsing {
   type Token = scallion.json.Token
   type Kind = TokenClass
 
-  import SafeImplicits._
+  import Implicits._
 
   override def getKind(token: Token): TokenClass = token match {
     case SeparatorToken(value, _) => SeparatorClass(value)
@@ -211,7 +211,7 @@ object JSONParserLR1 extends Syntaxes with lr1.LR1Parsing {
   implicit def separator(char: Char): Syntax[Token] = elem(SeparatorClass(char))
 
   lazy val arrayValue: Syntax[Value] =
-    ('[' ~ repsep(value, ','.unit()) ~ ']').map {
+    ('[' ~ repsep(value, ',') ~ ']').map {
       case start ~ vs ~ end => ArrayValue(vs, (start.range._1, end.range._2))
     }
 
@@ -221,7 +221,7 @@ object JSONParserLR1 extends Syntaxes with lr1.LR1Parsing {
     }
 
   lazy val objectValue: Syntax[Value] =
-    ('{' ~ repsep(binding, ','.unit()) ~ '}').map {
+    ('{' ~ repsep(binding, ',') ~ '}').map {
       case start ~ bs ~ end => ObjectValue(bs, (start.range._1, end.range._2))
     }
 

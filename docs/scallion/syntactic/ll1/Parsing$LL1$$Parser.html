@@ -225,7 +225,7 @@ See the package <a href="../../index.html" class="extype" name="scallion">scalli
 
       
           <div id="comment" class="fullcommenttop"><div class="comment cmt"><p>LL(1) parser.
-</p></div><dl class="attributes block"> <dt>Source</dt><dd><a href="https://raw.githubusercontent.com/epfl-lara/scallion/master/src/main/scala/scallion/syntactic/ll1/Parsing.scala" target="_blank">Parsing.scala</a></dd></dl><div class="toggleContainer block">
+</p></div><dl class="attributes block"> <dt>Self Type</dt><dd><a href="" class="extype" name="scallion.syntactic.ll1.Parsing.LL1.Parser">Parser</a>[<span class="extype" name="scallion.syntactic.ll1.Parsing.LL1.Parser.A">A</span>]</dd><dt>Source</dt><dd><a href="https://raw.githubusercontent.com/epfl-lara/scallion/master/src/main/scala/scallion/syntactic/ll1/Parsing.scala" target="_blank">Parsing.scala</a></dd></dl><div class="toggleContainer block">
           <span class="toggle">
             Linear Supertypes
           </span>
@@ -311,6 +311,22 @@ See the package <a href="../../index.html" class="extype" name="scallion">scalli
       </span>
       
       <p class="shortcomment cmt">Returns the set of token kinds that are accepted as the first token by <code>this</code> parser.</p>
+    </li><li name="scallion.syntactic.ll1.Parsing.LL1.Parser#markedPrefixes" visbl="pub" class="indented0 " data-isabs="true" fullComment="no" group="property">
+      <a id="markedPrefixes(marks:Set[Parsing.this.Mark]):Parsing.this.Syntax[_]"></a><a id="markedPrefixes(Set[(Parsing.this)#Mark]):(Parsing.this)#Syntax[_]"></a>
+      <span class="permalink">
+      <a href="../../../scallion/syntactic/ll1/Parsing$LL1$$Parser.html#markedPrefixes(marks:Set[Parsing.this.Mark]):Parsing.this.Syntax[_]" title="Permalink">
+        <i class="material-icons"></i>
+      </a>
+    </span>
+      <span class="modifier_kind">
+        <span class="modifier">abstract </span>
+        <span class="kind">def</span>
+      </span>
+      <span class="symbol">
+        <span class="name">markedPrefixes</span><span class="params">(<span name="marks">marks: <span class="extype" name="scala.Predef.Set">Set</span>[(<a href="Parsing.html" class="extype" name="scallion.syntactic.ll1.Parsing">Parsing</a>.this)#<span class="extype" name="scallion.syntactic.Syntaxes.Mark">Mark</span>]</span>)</span><span class="result">: (<a href="Parsing.html" class="extype" name="scallion.syntactic.ll1.Parsing">Parsing</a>.this)#<span class="extype" name="scallion.syntactic.Syntaxes.Syntax">Syntax</span>[_]</span>
+      </span>
+      
+      <p class="shortcomment cmt">Returns the smallest interesting prefixes appropriately marked.</p>
     </li><li name="scallion.syntactic.ll1.Parsing.LL1.Parser#nullable" visbl="pub" class="indented0 " data-isabs="true" fullComment="no" group="property">
       <a id="nullable:Option[A]"></a>
       <span class="permalink">
@@ -577,6 +593,22 @@ See the package <a href="../../index.html" class="extype" name="scallion">scalli
       </span>
       
       <p class="shortcomment cmt">Indicates if there exists a finite sequence of tokens that <code>this</code> parser describes.</p>
+    </li><li name="scallion.syntactic.ll1.Parsing.LL1.Parser#map" visbl="pub" class="indented0 " data-isabs="false" fullComment="no" group="parsing">
+      <a id="map[B](f:A=&gt;B):scallion.syntactic.ll1.Parsing.LL1.Parser[B]"></a><a id="map[B]((A)⇒B):Parser[B]"></a>
+      <span class="permalink">
+      <a href="../../../scallion/syntactic/ll1/Parsing$LL1$$Parser.html#map[B](f:A=&gt;B):scallion.syntactic.ll1.Parsing.LL1.Parser[B]" title="Permalink">
+        <i class="material-icons"></i>
+      </a>
+    </span>
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">def</span>
+      </span>
+      <span class="symbol">
+        <span class="name">map</span><span class="tparams">[<span name="B">B</span>]</span><span class="params">(<span name="f">f: (<span class="extype" name="scallion.syntactic.ll1.Parsing.LL1.Parser.A">A</span>) ⇒ <span class="extype" name="scallion.syntactic.ll1.Parsing.LL1.Parser.map.B">B</span></span>)</span><span class="result">: <a href="" class="extype" name="scallion.syntactic.ll1.Parsing.LL1.Parser">Parser</a>[<span class="extype" name="scallion.syntactic.ll1.Parsing.LL1.Parser.map.B">B</span>]</span>
+      </span>
+      
+      <p class="shortcomment cmt">Applies the given function on the result of the parser.</p>
     </li><li name="scala.AnyRef#ne" visbl="pub" class="indented0 " data-isabs="false" fullComment="yes" group="Ungrouped">
       <a id="ne(x$1:AnyRef):Boolean"></a><a id="ne(AnyRef):Boolean"></a>
       <span class="permalink">

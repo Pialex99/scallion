@@ -166,6 +166,10 @@ See the package <a href="../index.html" class="extype" name="scallion">scallion<
                         <a class="class" href="Syntaxes$Syntax$$Failure.html" title="Empty syntax."></a>
                         <a href="Syntaxes$Syntax$$Failure.html" title="Empty syntax.">Failure</a>
                       </li><li class="current-entities indented4">
+                        <span class="separator"></span>
+                        <a class="class" href="Syntaxes$Syntax$$Marked.html" title=""></a>
+                        <a href="Syntaxes$Syntax$$Marked.html" title="">Marked</a>
+                      </li><li class="current-entities indented4">
                         <a class="object" href="Syntaxes$Syntax$$Recursive$.html" title="Companion object of Recursive."></a>
                         <a class="class" href="Syntaxes$Syntax$$Recursive.html" title="Syntax that may recursively mention itself."></a>
                         <a href="Syntaxes$Syntax$$Recursive.html" title="Syntax that may recursively mention itself.">Recursive</a>
@@ -521,6 +525,23 @@ The parsed value from <code>that</code> is appended to that from <code>this</cod
       
       <p class="shortcomment cmt">Applies a <code>function</code> to the parsed values and the <code>inverse</code> function to the printed values.</p><div class="fullcomment"><div class="comment cmt"><p>Applies a <code>function</code> to the parsed values and the <code>inverse</code> function to the printed values.
 </p></div><dl class="paramcmts block"><dt class="param">function</dt><dd class="cmt"><p>The function to be applied on parsed values.</p></dd><dt class="param">inverse</dt><dd class="cmt"><p>The function to be applied on printed values.</p></dd></dl><dl class="attributes block"> <dt>Definition Classes</dt><dd><a href="Syntaxes$Syntax.html" class="extype" name="scallion.syntactic.Syntaxes.Syntax">Syntax</a></dd></dl></div>
+    </li><li name="scallion.syntactic.Syntaxes.Syntax#mark" visbl="pub" class="indented0 " data-isabs="false" fullComment="yes" group="combinator">
+      <a id="mark(mark:Syntaxes.this.Mark):Syntaxes.this.Syntax[A]"></a><a id="mark(Mark):Syntax[A]"></a>
+      <span class="permalink">
+      <a href="../../scallion/syntactic/Syntaxes$Syntax$$Success.html#mark(mark:Syntaxes.this.Mark):Syntaxes.this.Syntax[A]" title="Permalink">
+        <i class="material-icons"></i>
+      </a>
+    </span>
+      <span class="modifier_kind">
+        <span class="modifier"></span>
+        <span class="kind">def</span>
+      </span>
+      <span class="symbol">
+        <span class="name">mark</span><span class="params">(<span name="mark">mark: <a href="Syntaxes.html#Mark=String" class="extmbr" name="scallion.syntactic.Syntaxes.Mark">Mark</a></span>)</span><span class="result">: <a href="Syntaxes$Syntax.html" class="extype" name="scallion.syntactic.Syntaxes.Syntax">Syntax</a>[<span class="extype" name="scallion.syntactic.Syntaxes.Syntax.Success.A">A</span>]</span>
+      </span>
+      
+      <p class="shortcomment cmt">Marks <code>this</code> syntax.</p><div class="fullcomment"><div class="comment cmt"><p>Marks <code>this</code> syntax.
+     *</p></div><dl class="attributes block"> <dt>Definition Classes</dt><dd><a href="Syntaxes$Syntax.html" class="extype" name="scallion.syntactic.Syntaxes.Syntax">Syntax</a></dd></dl></div>
     </li><li name="scallion.syntactic.Syntaxes.Syntax.Success#matches" visbl="pub" class="indented0 " data-isabs="false" fullComment="no" group="Ungrouped">
       <a id="matches:A=&gt;Int"></a><a id="matches:(A)⇒Int"></a>
       <span class="permalink">
@@ -664,9 +685,9 @@ when building up sequences using <code>~</code>.</p><pre><span class="cmt">// As
       
       <div class="fullcomment"><dl class="attributes block"> <dt>Definition Classes</dt><dd>AnyRef</dd></dl></div>
     </li><li name="scallion.syntactic.Syntaxes.Syntax#unit" visbl="pub" class="indented0 " data-isabs="false" fullComment="yes" group="combinator">
-      <a id="unit(values:A*):Syntaxes.this.Syntax[Unit]"></a><a id="unit(A*):Syntax[Unit]"></a>
+      <a id="unit(value:A,values:A*):Syntaxes.this.Syntax[Unit]"></a><a id="unit(A,A*):Syntax[Unit]"></a>
       <span class="permalink">
-      <a href="../../scallion/syntactic/Syntaxes$Syntax$$Success.html#unit(values:A*):Syntaxes.this.Syntax[Unit]" title="Permalink">
+      <a href="../../scallion/syntactic/Syntaxes$Syntax$$Success.html#unit(value:A,values:A*):Syntaxes.this.Syntax[Unit]" title="Permalink">
         <i class="material-icons"></i>
       </a>
     </span>
@@ -675,13 +696,13 @@ when building up sequences using <code>~</code>.</p><pre><span class="cmt">// As
         <span class="kind">def</span>
       </span>
       <span class="symbol">
-        <span class="name">unit</span><span class="params">(<span name="values">values: <span class="extype" name="scallion.syntactic.Syntaxes.Syntax.Success.A">A</span>*</span>)</span><span class="result">: <a href="Syntaxes$Syntax.html" class="extype" name="scallion.syntactic.Syntaxes.Syntax">Syntax</a>[<span class="extype" name="scala.Unit">Unit</span>]</span>
+        <span class="name">unit</span><span class="params">(<span name="value">value: <span class="extype" name="scallion.syntactic.Syntaxes.Syntax.Success.A">A</span></span>, <span name="values">values: <span class="extype" name="scallion.syntactic.Syntaxes.Syntax.Success.A">A</span>*</span>)</span><span class="result">: <a href="Syntaxes$Syntax.html" class="extype" name="scallion.syntactic.Syntaxes.Syntax">Syntax</a>[<span class="extype" name="scala.Unit">Unit</span>]</span>
       </span>
       
       <p class="shortcomment cmt">Indicates that <code>this</code> syntax describes only a finite number of
-equivalent <code>values</code>.</p><div class="fullcomment"><div class="comment cmt"><p>Indicates that <code>this</code> syntax describes only a finite number of
-equivalent <code>values</code>.</p><p>Parsed values are replaced by <code>()</code>, while printed values
-are replaced by the various <code>values</code>.
+equivalent values.</p><div class="fullcomment"><div class="comment cmt"><p>Indicates that <code>this</code> syntax describes only a finite number of
+equivalent values.</p><p>Parsed values are replaced by <code>()</code>, while printed values
+are replaced by the various given values.
 </p></div><dl class="attributes block"> <dt>Definition Classes</dt><dd><a href="Syntaxes$Syntax.html" class="extype" name="scallion.syntactic.Syntaxes.Syntax">Syntax</a></dd></dl></div>
     </li><li name="scallion.syntactic.Syntaxes.Syntax#up" visbl="pub" class="indented0 " data-isabs="false" fullComment="yes" group="combinator">
       <a id="up[B&gt;:A](implicitev:Manifest[A]):Syntaxes.this.Syntax[B]"></a><a id="up[B&gt;:A](Manifest[A]):Syntax[B]"></a>

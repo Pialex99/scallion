@@ -23,7 +23,7 @@ import Tokens._
 
 class LL1ParserTests extends ParserTests with ll1.LL1Parsing {
   import LL1._
-  import SafeImplicits._
+  import Implicits._
 
   def builder[A](syntax: Syntax[A]): Parser[A] = LL1(syntax)
 
@@ -722,7 +722,7 @@ class LL1ParserTests extends ParserTests with ll1.LL1Parsing {
   import LL1Conflict._
 
   "LL1 conflicts" should "catch ambiguous first kinds" in {
-    val syntax = elem(BoolClass) | elem(NumClass) | elem(BoolClass) ~<~ elem(NumClass).unit()
+    val syntax = elem(BoolClass) | elem(NumClass) | elem(BoolClass) ~<~ elem(NumClass)
 
     val res = LL1.build(syntax)
     assert(res.isLeft)
@@ -778,7 +778,7 @@ class LL1ParserTests extends ParserTests with ll1.LL1Parsing {
     } | epsilon(0)
 
     lazy val expr: Syntax[Int] = recursive {
-      plusExpr | opt(elem(OperatorClass('+'))).unit() ~>~ literal
+      plusExpr | opt(elem(OperatorClass('+'))) ~>~ literal
     }
 
     lazy val plusExpr: Syntax[Int] = (opt(elem(OperatorClass('+'))) ~ expr).map {

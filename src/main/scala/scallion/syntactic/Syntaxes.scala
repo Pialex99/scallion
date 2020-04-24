@@ -45,6 +45,12 @@ trait Syntaxes {
     */
   type RecId = Int
 
+  /** Type of markings.
+    *
+    * @group other
+    */
+  type Mark = String
+
   /** Low priority implicits.
     * Contains an instance for [[Uninteresting]] for every type.
     *
@@ -56,7 +62,7 @@ trait Syntaxes {
     implicit def anyUninteresting[A]: Uninteresting[A] =
       new Uninteresting[A] {
         override def unit(syntax: Syntax[A]): Syntax[Unit] =
-          syntax.unit()
+          syntax.map(_ => ())
       }
   }
 
@@ -277,15 +283,15 @@ trait Syntaxes {
     }) | epsilon(None)
 
     /** Indicates that `this` syntax describes only a finite number of
-      * equivalent `values`.
+      * equivalent values.
       *
       * Parsed values are replaced by `()`, while printed values
-      * are replaced by the various `values`.
+      * are replaced by the various given values.
       *
       * @group combinator
       */
-    def unit(values: A*): Syntax[Unit] = this.map(_ => (), {
-      case () => values
+    def unit(value: A, values: A*): Syntax[Unit] = this.map(_ => (), {
+      case () => value +: values
     })
 
     /** Upcasts `this` syntax.
@@ -299,6 +305,12 @@ trait Syntaxes {
         case None => Seq()
         case Some(x) => Seq(x)
       })
+
+    /** Marks `this` syntax.
+      *      *
+      * @group combinator
+      */
+    def mark(mark: Mark): Syntax[A] = Marked(mark, this)
   }
 
   /** Contains primitive basic syntaxes and syntax combinators.
@@ -374,7 +386,13 @@ trait Syntaxes {
     case class Transform[A, B](
         function: A => B,
         inverse: B => Seq[A],
-        inner: Syntax[A]) extends Syntax[B] with Unary[A]
+        inner: Syntax[A]) extends Syntax[B] with Unary[A] {
+      require(inner != null)
+    }
+
+    case class Marked[A](mark: Mark, inner: Syntax[A]) extends Syntax[A] with Unary[A] {
+      require(inner != null)
+    }
 
     /** Syntax that sequences the `left` and `right` syntaxes and pairs the results.
       *
@@ -384,7 +402,9 @@ trait Syntaxes {
       * @group combinator
       */
     case class Sequence[A, B](left: Syntax[A], right: Syntax[B])
-        extends Syntax[A ~ B] with Binary[A, B]
+        extends Syntax[A ~ B] with Binary[A, B] {
+      require(left != null && right != null)
+    }
 
     /** Syntax that acts as either the `left` or the `right` syntaxes.
       *
@@ -394,7 +414,9 @@ trait Syntaxes {
       * @group combinator
       */
     case class Disjunction[A](left: Syntax[A], right: Syntax[A])
-        extends Syntax[A] with Binary[A, A]
+        extends Syntax[A] with Binary[A, A] {
+      require(left != null && right != null)
+    }
 
     /** Companion object of `Recursive`.
       *
@@ -548,12 +570,20 @@ trait Syntaxes {
     */
   def opt[A](syntax: Syntax[A]): Syntax[Option[A]] = syntax.opt
 
+  private def optMark[A](syntax: Syntax[A], mark: Option[Mark]): Syntax[A] =
+    mark match {
+      case None => syntax
+      case Some(mark) => syntax.mark(mark)
+    }
+
   /** Syntax that represents 0 or more repetitions of the `rep` syntax.
     *
     * @group combinator
     */
-  def many[A](rep: Syntax[A]): Syntax[Seq[A]] = {
-    lazy val rest: Syntax[Seq[A]] = recursive(rep +: rest | epsilon(List()))
+  def many[A](rep: Syntax[A], mark: Option[Mark] = None): Syntax[Seq[A]] = {
+    lazy val rest: Syntax[Seq[A]] = recursive {
+      optMark(rep +: rest | epsilon(List()), mark)
+    }
     rest
   }
 
@@ -561,7 +591,9 @@ trait Syntaxes {
     *
     * @group combinator
     */
-  def many1[A](rep: Syntax[A]): Syntax[Seq[A]] = rep +: many(rep)
+  def many1[A](rep: Syntax[A], mark: Option[Mark] = None): Syntax[Seq[A]] = {
+    rep +: many(rep, mark)
+  }
 
   /** @usecase def repsep[A, B](rep: Syntax[A], sep: Syntax[B]): Syntax[Seq[A]]
     *
@@ -569,9 +601,10 @@ trait Syntaxes {
     *
     * @group combinator
     */
-  def repsep[A, B](rep: Syntax[A], sep: Syntax[B])
-      (implicit ev: Uninteresting[B]): Syntax[Seq[A]] =
-    rep1sep(rep, sep)(ev) | epsilon(Vector())
+  def repsep[A, B](rep: Syntax[A], sep: Syntax[B], mark: Option[Mark] = None)
+      (implicit ev: Uninteresting[B]): Syntax[Seq[A]] = {
+    optMark(rep1sep(rep, sep, mark)(ev) | epsilon(Vector()), mark)
+  }
 
   /** @usecase def rep1sep[A, B](rep: Syntax[A], sep: Syntax[B]): Syntax[Seq[A]]
     *
@@ -579,9 +612,12 @@ trait Syntaxes {
     *
     * @group combinator
     */
-  def rep1sep[A, B](rep: Syntax[A], sep: Syntax[B])
+  def rep1sep[A, B](rep: Syntax[A], sep: Syntax[B], mark: Option[Mark] = None)
       (implicit ev: Uninteresting[B]): Syntax[Seq[A]] = {
-    lazy val rest: Syntax[Seq[A]] = recursive((sep ~>~ rep) +: rest | epsilon(Vector()))
+    lazy val rest: Syntax[Seq[A]] = recursive {
+      (sep ~>~ optMark(rep +: rest, mark)) | epsilon(Vector())
+    }
+
     rep +: rest
   }
 

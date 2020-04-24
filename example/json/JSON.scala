@@ -21,6 +21,9 @@ import scallion.input._
 import scallion.lexical._
 import scallion.syntactic._
 
+/* In this example, we show a lexer and parser for JSON. */
+
+
 // First, we define the token for our language.
 sealed abstract class Token {
   // We store the indices at which the tokens
@@ -216,14 +219,30 @@ object JSONParser extends Syntaxes with ll1.LL1Parsing with Enumeration {
       nullValue)
   }
 
+  // Creates the LL1 parser from the syntax.
   val parser = LL1(value)
 
   // Turn the iterator of tokens into a value, if possible.
-  def apply(it: Iterator[Token]): Option[Value] = parser(it) match {
-    case Parsed(value, syntax) => Some(value)  // The parse was successful.
-    case UnexpectedToken(token, expected, syntax) => None  // Encountered an unexpected `token`.
-    case UnexpectedEnd(expected, syntax) => None  // Encountered an unexpected end of input.
-    // In each case, syntax contains a `Syntax[Value]` which can
-    // be used to resume parsing at that point.
+  def apply(it: Iterator[Token]): Either[String, Value] = parser(it) match {
+    case LL1.Parsed(value, rest) => Right(value)  // The parse was successful.
+    case LL1.UnexpectedToken(token, rest) =>  // The parse was unsuccessful due to a wrong token.
+      Left("Unexpected " + token + ", expected one of " + rest.first.mkString(", "))
+    case LL1.UnexpectedEnd(rest) =>  // The parse was unsuccessful due to the end of input.
+      Left("Unexpected end of input. Quickest way to end is \"" +
+        Enumerator.enumerate(rest.syntax).next().mkString("") + "\"")
   }
 }
+
+object JSON {
+  def main(args: Array[String]) {
+    println("Parsing some valid JSON example strings.")
+    println(JSONParser(JSONLexer("""{"foo":"bar", "baz":null}""".iterator)))
+    println(JSONParser(JSONLexer("""[1, [true, false, {}], [3, [], [5, 6]]]""".iterator)))
+    println("Parsing some invalid JSON example strings.")
+    println(JSONParser(JSONLexer("""{1:2}""".iterator)))
+    println(JSONParser(JSONLexer("""[1, 2 3]""".iterator)))
+    println(JSONParser(JSONLexer("""[1, 2, 3}""".iterator)))
+    println(JSONParser(JSONLexer("""[1, {"foo": [{"bar" """.iterator)))
+  }
+}
+

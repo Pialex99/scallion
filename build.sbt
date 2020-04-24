@@ -1,6 +1,6 @@
 
 val commonSettings = Seq(
-  version            := "0.4",
+  version            := "0.5",
   scalaVersion       := "2.12.8",
   crossScalaVersions := Seq("2.12.8", "2.13.1"),
   organization       := "ch.epfl.lara",
@@ -48,4 +48,26 @@ lazy val example = project
     scalaSource in Compile := baseDirectory.value,
   )
   .dependsOn(scallion)
+
+lazy val benchmark = project
+  .in(file("benchmark"))
+  .settings(
+    commonSettings,
+    name                   := "scallion-benchmarks",
+    fork in run            := true,
+    run / baseDirectory    := file("."),
+    javaOptions in run     += "-Xss1024K",
+    scalaSource in Compile := baseDirectory.value / "src",
+    scalaSource in Test    := baseDirectory.value / "src",
+    resolvers += "Sonatype OSS Snapshots" at "https://oss.sonatype.org/content/repositories/releases",
+    resolvers += "bintray-djspiewak-maven" at "https://dl.bintray.com/djspiewak/maven",
+    libraryDependencies += "com.storm-enroute" %% "scalameter" % "0.19",
+    libraryDependencies += "org.scala-lang.modules" %% "scala-parser-combinators" % "1.1.2",
+    libraryDependencies += "com.codecommit" %% "parseback-core" % "0.3",
+    libraryDependencies += "com.codecommit" %% "parseback-cats" % "0.3",
+    testFrameworks += new TestFramework("org.scalameter.ScalaMeterFramework"),
+    parallelExecution in Test := false,
+  )
+  .dependsOn(scallion)
+
 
