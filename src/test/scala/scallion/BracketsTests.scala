@@ -27,7 +27,7 @@ class BracketsTests extends FlatSpec with Inside with Syntaxes with Operators wi
 
   implicit def implicitCast(t: BracketsTockens.Tocken): Syntax[Tocken] = elem(t)
 
-  val res: Syntax[Int] = (Open ~ recursive(res) ~ Close).map{
+  val syntax: Syntax[Int] = (Open ~ recursive(syntax) ~ Close).map{
     case _ ~ n ~ _ => n + 1
   } | epsilon(0)
 
@@ -111,6 +111,45 @@ class BracketsTests extends FlatSpec with Inside with Syntaxes with Operators wi
 
   it should "fails for ())" in {
     val result = handMaidParser(List(Open, Close, Close).iterator)
+    assert(result.getValue == None)
+    result match {
+      case UnexpectedToken(Close, expected, rest) => 
+        assert(expected == Set())
+        assert(rest(List().iterator).getValue == Some(1))
+      case _ => fail()
+    }
+  }
+
+  val generatedParser = LR1(syntax)
+
+  "Generated parser" should "output 0 on empty input" in {
+    val result = generatedParser(List().toIterator)
+    assert(result.getValue == Some(0))
+  }
+
+  it should "() = 1" in {
+    val result = generatedParser(List(Open, Close).toIterator)
+    assert(result.getValue == Some(1))
+  }
+
+  it should "(((()))) = 4" in {
+    val result = generatedParser(List(Open, Open, Open, Open, Close, Close, Close, Close).toIterator)
+    assert(result.getValue == Some(4))
+  }
+
+  it should "fails for (" in {
+    val result = generatedParser(List(Open).iterator)
+    assert(result.getValue == None)
+    result match {
+      case UnexpectedEnd(expected, rest) => 
+        assert(expected == Set(Open, Close))
+        assert(rest(List(Close).iterator).getValue == Some(1))
+      case _ => fail()
+    }
+  }
+
+  it should "fails for ())" in {
+    val result = generatedParser(List(Open, Close, Close).iterator)
     assert(result.getValue == None)
     result match {
       case UnexpectedToken(Close, expected, rest) => 

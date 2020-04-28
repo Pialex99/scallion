@@ -20,6 +20,7 @@ import org.scalatest._
 import scallion.syntactic._
 
 import Tokens._
+import scallion.BracketsTockens.Tocken
 
 class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators with lr1.Parsing {
 
@@ -37,6 +38,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
   }
 
   import Syntax._
+  import LR1._
 
   // elem
 
@@ -44,7 +46,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(elem(NumClass))
 
     inside(parser(Seq(Num(1)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Num(1))
       }
     }
@@ -54,7 +56,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(elem(NumClass))
 
     inside(parser(Seq(Bool(true)).iterator)) {
-      case LR1.UnexpectedToken(token, expected, rest) => {
+      case UnexpectedToken(token, expected, rest) => {
         assert(token == Bool(true))
         assert(expected == Set(NumClass))
       }
@@ -65,7 +67,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(elem(NumClass))
 
     inside(parser(Seq().iterator)) {
-      case LR1.UnexpectedEnd(expected, rest) => {
+      case UnexpectedEnd(expected, rest) => {
         assert(expected == Set(NumClass))
       }
     }
@@ -79,7 +81,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     })
 
     inside(parser(Seq(Num(1)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == 2)
       }
     }
@@ -91,7 +93,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     })
 
     inside(parser(Seq(Bool(true)).iterator)) {
-      case LR1.UnexpectedToken(token, expected, rest) => {
+      case UnexpectedToken(token, expected, rest) => {
         assert(token == Bool(true))
         assert(expected == Set(NumClass))
       }
@@ -104,7 +106,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     })
 
     inside(parser(Seq().iterator)) {
-      case LR1.UnexpectedEnd(expected, rest) => {
+      case UnexpectedEnd(expected, rest) => {
         assert(expected == Set(NumClass))
       }
     }
@@ -116,7 +118,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(epsilon("ok"))
 
     inside(parser(Seq().iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == "ok")
       }
     }
@@ -126,7 +128,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(epsilon("ok"))
 
     inside(parser(Seq(Bool(true)).iterator)) {
-      case LR1.UnexpectedToken(token, expected, rest) => {
+      case UnexpectedToken(token, expected, rest) => {
         assert(token == Bool(true))
         assert(expected == Set())
       }
@@ -135,13 +137,23 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
 
   // failure
 
-  "failure" should "correctly fail in case of remaining input" in {
+  "failure" should "correctly fail in case of end of input" in {
+    val parser = LR1(failure[Any])
+
+    inside(parser(Seq().iterator)) {
+      case UnexpectedEnd(expected, rest) => {
+        assert(expected.isEmpty)
+      }
+    }
+  }
+
+  it should "correctly fail in case of remaining input" in {
     val parser = LR1(failure[Any])
 
     inside(parser(Seq(Bool(true)).iterator)) {
-      case LR1.UnexpectedToken(token, expected, rest) => {
+      case UnexpectedToken(token, expected, rest) => {
         assert(token == Bool(true))
-        assert(expected == Set())
+        assert(expected.isEmpty)
       }
     }
   }
@@ -152,7 +164,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(elem(BoolClass) ~ elem(NumClass))
 
     inside(parser(Seq(Bool(true), Num(32)).iterator)) {
-      case LR1.Parsed(first ~ second, rest) => {
+      case Parsed(first ~ second, rest) => {
         assert(first == Bool(true))
         assert(second == Num(32))
       }
@@ -163,7 +175,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1((elem(BoolClass) | epsilon(Bool(true))) ~ elem(NumClass))
 
     inside(parser(Seq(Num(32)).iterator)) {
-      case LR1.Parsed(first ~ second, rest) => {
+      case Parsed(first ~ second, rest) => {
         assert(first == Bool(true))
         assert(second == Num(32))
       }
@@ -174,14 +186,14 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(elem(BoolClass) ~ elem(NumClass))
 
     inside(parser(Seq(Num(1), Num(2)).iterator)) {
-      case LR1.UnexpectedToken(token, expected, rest) => {
+      case UnexpectedToken(token, expected, rest) => {
         assert(token == Num(1))
         assert(expected == Set(BoolClass))
       }
     }
 
     inside(parser(Seq(Bool(true), Bool(false)).iterator)) {
-      case LR1.UnexpectedToken(token, expected, rest) => {
+      case UnexpectedToken(token, expected, rest) => {
         assert(token == Bool(false))
         assert(expected == Set(NumClass))
       }
@@ -195,7 +207,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(f(BoolClass) ++ f(NumClass))
 
     inside(parser(Seq(Bool(true), Num(32)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Seq(Bool(true), Num(32)))
       }
     }
@@ -207,7 +219,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
       elem(NumClass).map(Seq(_)))
 
     inside(parser(Seq(Num(32)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Seq(Bool(true), Num(32)))
       }
     }
@@ -217,14 +229,14 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(elem(BoolClass).map(Seq(_)) ++ elem(NumClass).map(Seq(_)))
 
     inside(parser(Seq(Num(1), Num(2)).iterator)) {
-      case LR1.UnexpectedToken(token, expected, rest) => {
+      case UnexpectedToken(token, expected, rest) => {
         assert(token == Num(1))
         assert(expected == Set(BoolClass))
       }
     }
 
     inside(parser(Seq(Bool(true), Bool(false)).iterator)) {
-      case LR1.UnexpectedToken(token, expected, rest) => {
+      case UnexpectedToken(token, expected, rest) => {
         assert(token == Bool(false))
         assert(expected == Set(NumClass))
       }
@@ -237,7 +249,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(elem(BoolClass) | elem(NumClass))
 
     inside(parser(Seq(Bool(true)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Bool(true))
       }
     }
@@ -247,7 +259,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(elem(BoolClass) | elem(NumClass))
 
     inside(parser(Seq(Num(1)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Num(1))
       }
     }
@@ -259,13 +271,13 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(elem(BoolClass) || elem(NumClass))
 
     inside(parser(Seq(Num(1)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Right(Num(1)))
       }
     }
 
     inside(parser(Seq(Bool(true)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Left(Bool(true)))
       }
     }
@@ -275,13 +287,13 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(elem(BoolClass).map(_ => "X") || elem(NumClass).map(_ => 42))
 
     inside(parser(Seq(Num(1)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Right(42))
       }
     }
 
     inside(parser(Seq(Bool(true)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Left("X"))
       }
     }
@@ -293,7 +305,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(many(elem(NumClass)))
 
     inside(parser(Seq().iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Seq())
       }
     }
@@ -303,7 +315,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(many(elem(NumClass)))
 
     inside(parser(Seq(Num(12)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Seq(Num(12)))
       }
     }
@@ -313,7 +325,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(many(elem(NumClass)))
 
     inside(parser(Seq(Num(12), Num(34), Num(1)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Seq(Num(12), Num(34), Num(1)))
       }
     }
@@ -323,7 +335,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(many(elem(NumClass) | elem(BoolClass)))
 
     inside(parser(Seq(Num(12), Bool(true), Num(1), Num(12), Bool(false)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Seq(Num(12), Bool(true), Num(1), Num(12), Bool(false)))
       }
     }
@@ -333,7 +345,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(many(elem(NumClass)))
 
     inside(parser(Seq(Num(12), Bool(true), Num(1)).iterator)) {
-      case LR1.UnexpectedToken(token, expected, rest) => {
+      case UnexpectedToken(token, expected, rest) => {
         assert(token == Bool(true))
         assert(expected == Set(NumClass))
       }
@@ -346,7 +358,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(many1(elem(NumClass)))
 
     inside(parser(Seq().iterator)) {
-      case LR1.UnexpectedEnd(expected, rest) => {
+      case UnexpectedEnd(expected, rest) => {
         assert(expected == Set(NumClass))
       }
     }
@@ -356,7 +368,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(many1(elem(NumClass)))
 
     inside(parser(Seq(Num(12)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Seq(Num(12)))
       }
     }
@@ -366,7 +378,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(many1(elem(NumClass)))
 
     inside(parser(Seq(Num(12), Num(34), Num(1)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Seq(Num(12), Num(34), Num(1)))
       }
     }
@@ -376,7 +388,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(many1(elem(NumClass) | elem(BoolClass)))
 
     inside(parser(Seq(Num(12), Bool(true), Num(1), Num(12), Bool(false)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Seq(Num(12), Bool(true), Num(1), Num(12), Bool(false)))
       }
     }
@@ -386,7 +398,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(many1(elem(NumClass)))
 
     inside(parser(Seq(Num(12), Bool(true), Num(1)).iterator)) {
-      case LR1.UnexpectedToken(token, expected, rest) => {
+      case UnexpectedToken(token, expected, rest) => {
         assert(token == Bool(true))
         assert(expected == Set(NumClass))
       }
@@ -403,9 +415,75 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     val parser = LR1(syntax)
 
     inside(parser(Seq(Bool(true), Bool(false)).iterator)) {
-      case LR1.Parsed(res, rest) => {
+      case Parsed(res, rest) => {
         assert(res == Seq(Bool(true), Bool(false)))
       }
+    }
+  }
+
+  it should "allow building left recursive parsers" in {
+    lazy val syntax: Syntax[Seq[Token]] = recursive {
+      syntax :+ elem(BoolClass) | epsilon(Seq())
+    }
+
+    val parser = LR1(syntax)
+
+    inside(parser(Seq(Bool(true), Bool(false)).iterator)) {
+      case Parsed(res, rest) => {
+        assert(res == Seq(Bool(true), Bool(false)))
+      }
+    }
+  }
+
+  // LR1 conflicts
+
+  import LR1.Conflict._
+
+  "LR1 conflicts" should "have a SR conflict for the language of palindroms" in {
+    lazy val syntax: Syntax[Seq[Token]] = recursive {
+      elem(BoolClass) +: syntax :+ elem(BoolClass) |
+      elem(NumClass) +: syntax :+ elem(NumClass) |
+      epsilon(Seq())
+    }
+
+    val res = LR1.build(syntax)
+    assert(res.isLeft)
+
+    val Left(conflicts) = res
+    assert(conflicts.size > 1)
+    inside((conflicts.toSeq(0), conflicts.toSeq(1))) {
+      case (ShiftReduce(kind1), ShiftReduce(kind2)) => 
+        assert(kind1.isDefined)
+        assert(kind2.isDefined)
+        assert(kind1.get == BoolClass || kind2.get == BoolClass)
+        assert(kind1.get == NumClass || kind2.get == NumClass)
+    }
+  }
+
+  it should "catch ambiguous language" in {
+    lazy val syntax: Syntax[Int] = recursive {
+      epsilon(0) | syntax map (_ + 1)
+    }
+
+    val res = LR1.build(syntax)
+    assert(res.isLeft)
+
+    val Left(conflicts) = res
+    assert(conflicts.size == 1)
+    inside(conflicts.head) {
+      case ReduceReduce(kind) => 
+        assert(kind.isEmpty)
+    }
+  }
+
+  it should "catch ambiguous language 2" in {
+    import scala.language.implicitConversions
+    implicit def cast(c: Char) = elem(DelimiterClass(c))
+    lazy val syntax: Syntax[Unit] = recursive {
+      (syntax ~ '(' ~ syntax ~ ')' ~ syntax ).map(_ => ()) | epsilon(Unit)
+    }
+    assertThrows[ConflictException] {
+      LR1(syntax)
     }
   }
 }

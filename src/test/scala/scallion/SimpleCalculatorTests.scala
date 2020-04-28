@@ -378,7 +378,7 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
   )
   val handMaidParser = LR1Parser[Int](EmptyStack)(actionTable, gotoTable)
 
-  "HandMaisParser" should "1 = 1" in {
+  "HandMaidParser" should "1 = 1" in {
     val result = handMaidParser(List(Num(1)).toIterator)
     assert(result.getValue == Some(1))
   }

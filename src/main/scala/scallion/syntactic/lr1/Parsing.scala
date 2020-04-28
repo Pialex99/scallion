@@ -531,8 +531,12 @@ trait Parsing { self: Syntaxes =>
           Left(
             UnexpectedToken(t, Set(), LR1Parser(stack))
           )
-        case (_, _) =>
-          throw new RuntimeException("ActionTable not correct !")
+        case (Some(Reduce(FailureRule(ntid))), None) =>
+          Left(
+            UnexpectedEnd(Set(), LR1Parser(stack))
+          )
+        case (action, token) =>
+          throw new RuntimeException(s"ActionTable not correct ! action = $action, token = $token")
       }
 
       override def apply(tokens: Iterator[Token]): ParseResult[A] = {
