@@ -9,20 +9,33 @@ import scala.collection.mutable.HashMap
 import scala.collection.immutable.IntMap
 
 /** This trait implements LR(1) parsing. */
-trait LR1Parsing extends Parsing { self: Syntaxes =>
+trait Parsing { self: Syntaxes =>
   import Syntax._
   /** Factory of LR(1) parsers. */
-  object LR1 extends ParserFactory {
+  object LR1 {
+
+    /** Describes a LR(1) conflict.
+      *
+      * @group conflict
+      */
+    sealed trait Conflict
 
     /** Contains the description of the various LR(1) conflicts.
       *
       * @group conflict
       */
-    object LR1Conflict {
-      case class ReduceReduce(source: Syntax.Disjunction[_], kind: Option[Kind]) extends Conflict
-      case class ShiftReduce(source: Syntax.Disjunction[_], kind: Option[Kind]) extends Conflict
+    object Conflict {
+      case class ReduceReduce(kind: Option[Kind]) extends Conflict
+      case class ShiftReduce(kind: Option[Kind]) extends Conflict
     }
-    import LR1Conflict._
+    
+    /** Indicates that a syntax is not LL(1) due to various conflicts.
+      *
+      * @group conflict
+      */
+    case class ConflictException(conflicts: Set[Conflict]) extends Exception("Syntax is not LR(1).")
+
+    import Conflict._
 
     /**
      * Contains the definitions and the function used to convert a syntax into a set of rules
@@ -298,14 +311,14 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
             val reduces: Map[Option[Kind], Action] = grouped.getOrElse(None, Set()).flatMap { item => item.followBy map (_ -> Reduce(item.rule)) }.groupBy(_._1).map {
               case (kind, reducesSet) => 
                 if (reducesSet.size > 1) {
-                  conflicts += ReduceReduce(null, kind) 
+                  conflicts += ReduceReduce(kind) 
                 }
                 if (reducesSet.head._2.rule == rulesById(0)(0)) kind -> Done
                 else reducesSet.head
             }
             val intersect = reduces.keySet intersect shifts.keySet
             if (!intersect.isEmpty) {
-              conflicts ++= intersect map (kind => ShiftReduce(null, kind))
+              conflicts ++= intersect map (kind => ShiftReduce(kind))
             }
             (shifts ++ reduces, goto)
           }
@@ -347,6 +360,20 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
     }
 
     import stack._
+     
+    /** Builds a LL(1) parser from a syntax description.
+      * In case the syntax is not LL(1),
+      * returns the set of conflicts instead of a parser.
+      *
+      * @param syntax The description of the syntax.
+      * @group parsing
+      */
+    def build[A](syntax: Syntax[A]): Either[Set[Conflict], Parser[A]] =
+      util.Try(apply(syntax, enforceLR1=true)) match {
+        case util.Success(parser) => Right(parser)
+        case util.Failure(ConflictException(conflicts)) => Left(conflicts)
+        case util.Failure(exception) => throw exception
+      }
 
       /** Builds a LR(1) parser from a syntax description.
       *
@@ -357,7 +384,7 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
       * @throws ConflictException when the `syntax` is not LR(1) and `enforceLR1` is not set to `false`.
       * @group parsing
       */
-    override def apply[A](syntax: Syntax[A], enforceLR1: Boolean = true): LR1Parser[A] = {
+    def apply[A](syntax: Syntax[A], enforceLR1: Boolean = true): LR1Parser[A] = {
       implicit val (rulesById, (firstSets, nullable)) = getRules(syntax)
       val (conflicts, actionTable, gotoTable) = generateTables
       if (enforceLR1 && !conflicts.isEmpty) 
@@ -366,6 +393,86 @@ trait LR1Parsing extends Parsing { self: Syntaxes =>
         LR1Parser(EmptyStack)(actionTable, gotoTable)
     }
 
+    /** Result of parsing.
+      *
+      * @group result
+      */
+    sealed trait ParseResult[A] {
+
+      /** Parser for the rest of input. */
+      val rest: Parser[A]
+
+      /** Returns the parsed value, if any. */
+      def getValue: Option[A] = this match {
+        case Parsed(value, _) => Some(value)
+        case _ => None
+      }
+
+      /** Apply the given function on the result of the parse */
+      def map[B](f: A => B): ParseResult[B] = this match {
+        case Parsed(value, rest)                    => Parsed(f(value), rest.map(f))
+        case UnexpectedEnd(expected, rest)          => UnexpectedEnd(expected, rest.map(f))
+        case UnexpectedToken(token, expected, rest) => UnexpectedToken(token, expected, rest.map(f))
+      }
+    }
+
+    /** Indicates that the input has been fully parsed, resulting in a `value`.
+      *
+      * A parser for subsequent input is also provided.
+      *
+      * @param value The value produced.
+      * @param rest  Parser for more input.
+      *
+      * @group result
+      */
+    case class Parsed[A](value: A, rest: Parser[A]) extends ParseResult[A]
+
+    /** Indicates that the provided `token` was not expected at that point.
+      *
+      * The parser at the point of error is returned.
+      *
+      * @param token    The token at fault.
+      * @param expected The set of token that would have been accepted
+      * @param rest     Parser at the point of error.
+      *
+      * @group result
+      */
+    case class UnexpectedToken[A](token: Token, expected: Set[Kind], rest: Parser[A]) extends ParseResult[A]
+
+    /** Indicates that end of input was unexpectedly encountered.
+      *
+      * The `syntax` for subsequent input is provided.
+      *
+      * @param expected The set of token that would have been accepted
+      * @param syntax   Syntax at the end of input.
+      *
+      * @group result
+      */
+    case class UnexpectedEnd[A](expected: Set[Kind], rest: Parser[A]) extends ParseResult[A]
+
+    /** A parser.
+    *
+    * @group parsing
+    */
+    sealed trait Parser[A] { self =>
+      /** Parses a sequence of tokens.
+        *
+        * @group parsing
+        */
+      def apply(tokens: Iterator[Token]): ParseResult[A]
+
+      /** Apply the given function on the result of the parser.
+       *
+       * @group parsing
+       */
+      def map[B](f: A => B): Parser[B] = {
+        new Parser[B] {
+          def apply(tokens: Iterator[Token]): ParseResult[B] = {
+            self.apply(tokens).map(f)
+          }
+        }
+      }
+    }
     // token = None means EOF
 
     case class LR1Parser[A](startingStack: Stack = EmptyStack)(implicit actionTable: State => Map[Option[Kind], Action], gotoTable: State => Id => State) extends Parser[A] {

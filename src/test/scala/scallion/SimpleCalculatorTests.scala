@@ -35,7 +35,7 @@ object CalculatorTokens {
 
 import CalculatorTokens._
 
-class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Operators with lr1.LR1Parsing {
+class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Operators with lr1.Parsing {
 
   type Token = CalculatorTokens.Token
   type Kind = CalculatorTokens.TokenClass
@@ -70,7 +70,7 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
   val rSum5 = NormalRule2(3, NonTerminal(4), NonTerminal(5))
   val rSum6 = NormalRule2(4, NonTerminal(5), Terminal(PlusClass))
   val rSum7 = NormalRule1(5, NonTerminal(1))
-  val rSum8 = TransformRule[Int, Token](6, { case Num(n) => n }, Terminal(NumClass))
+  val rSum8 = TransformRule[Int, Num](6, { case Num(n) => n }, Terminal(NumClass))
 
   val actionSumTable: Vector[Map[Option[Kind], Action]] = Vector(
 /* 0 */    Map(Some(NumClass) -> Shift(7)),
@@ -329,8 +329,8 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
   val r13 = NormalRule1(10, NonTerminal(6))
   val r14 = NormalRule1(11, NonTerminal(12))
   val r15 = NormalRule1(11, NonTerminal(13))
-  val r16 = TransformRule[Int, Token](12, { case Num(n) => n }, Terminal(NumClass))
-  val r17 = TransformRule[Int, Token](13, { case Id(i) => idValues(i) }, Terminal(IdClass))
+  val r16 = TransformRule[Int, Num](12, { case Num(n) => n }, Terminal(NumClass))
+  val r17 = TransformRule[Int, CalculatorTokens.Id](13, { case Id(i) => idValues(i) }, Terminal(IdClass))
 
   val actionTable: Vector[Map[Option[Kind], Action]] = Vector(
 /* 0 */    Map(Some(NumClass) -> Shift(14), Some(IdClass) -> Shift(15)),

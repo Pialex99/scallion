@@ -12,7 +12,7 @@ object BracketsTockens {
 
 import BracketsTockens._
 
-class BracketsTests extends FlatSpec with Inside with Syntaxes with Operators with lr1.LR1Parsing {
+class BracketsTests extends FlatSpec with Inside with Syntaxes with Operators with lr1.Parsing {
 
   type Kind = BracketsTockens.Tocken
   type Token = BracketsTockens.Tocken

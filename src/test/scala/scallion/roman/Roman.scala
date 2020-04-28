@@ -94,6 +94,6 @@ abstract class RomanSyntax extends Syntaxes {
   })
 }
 
-object RomanLL1Syntax extends RomanSyntax with ll1.LL1Parsing
+object RomanLL1Syntax extends RomanSyntax with ll1.Parsing
 
-object RomanLR1Syntax extends RomanSyntax with lr1.LR1Parsing
+object RomanLR1Syntax extends RomanSyntax with lr1.Parsing

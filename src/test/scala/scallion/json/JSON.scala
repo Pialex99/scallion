@@ -118,7 +118,7 @@ object JSONLexer extends Lexers with CharRegExps {
   }
 }
 
-object JSONParserLL1 extends Syntaxes with ll1.LL1Parsing {
+object JSONParserLL1 extends Syntaxes with ll1.Parsing {
 
   type Token = scallion.json.Token
   type Kind = TokenClass
@@ -173,10 +173,10 @@ object JSONParserLL1 extends Syntaxes with ll1.LL1Parsing {
 
   val parser = LL1(value)
 
-  def apply(it: Iterator[Token]): ParseResult[Value] = parser(it)
+  def apply(it: Iterator[Token]): LL1.ParseResult[Value] = parser(it)
 }
 
-object JSONParserLR1 extends Syntaxes with lr1.LR1Parsing {
+object JSONParserLR1 extends Syntaxes with lr1.Parsing {
 
   type Token = scallion.json.Token
   type Kind = TokenClass
@@ -231,5 +231,5 @@ object JSONParserLR1 extends Syntaxes with lr1.LR1Parsing {
 
   val parser = LR1(value)
 
-  def apply(it: Iterator[Token]): ParseResult[Value] = parser(it)
+  def apply(it: Iterator[Token]): LR1.ParseResult[Value] = parser(it)
 }
