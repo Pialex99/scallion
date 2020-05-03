@@ -30,7 +30,7 @@ case object D extends Symbol
 case object M extends Symbol
 
 // The following describes the syntax of roman numerals.
-object RomanSyntax extends Syntaxes with ll1.LL1Parsing with PrettyPrinting {
+object RomanSyntax extends Syntaxes with ll1.Parsing with PrettyPrinting {
 
   // Tokens and kinds coincide in this example.
   type Token = Symbol

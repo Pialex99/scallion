@@ -111,7 +111,7 @@ case class Abs(name: String, body: Expr) extends Expr  // Lambda abstraction.
 
 // The following object describes the syntax of lambda calculus,
 // and provides methods to parse and pretty print expressions.
-object LambdaSyntax extends Syntaxes with ll1.LL1Parsing with PrettyPrinting {
+object LambdaSyntax extends Syntaxes with ll1.Parsing with PrettyPrinting {
 
   type Token = example.lambda.Token  // The type of tokens.
   type Kind = TokenKind  // The type of token types.

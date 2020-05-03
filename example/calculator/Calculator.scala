@@ -99,7 +99,7 @@ case class UnaryExpr(op: Char, inner: Expr) extends Expr
 
 // The following object describes the syntax of the calculator language,
 // and provides methods to parse and pretty print expressions.
-object CalcSyntax extends Syntaxes with Operators with ll1.LL1Parsing with PrettyPrinting {
+object CalcSyntax extends Syntaxes with Operators with ll1.Parsing with PrettyPrinting {
 
   type Token = example.calculator.Token  // Type of tokens.
   type Kind = TokenKind  // Type of token kinds.
@@ -183,7 +183,7 @@ object CalcSyntax extends Syntaxes with Operators with ll1.LL1Parsing with Prett
 
   // Parses expressions.
   def apply(it: Iterator[Token]): Option[Expr] = parser(it) match {
-    case Parsed(value, _) => Some(value)
+    case LL1.Parsed(value, _) => Some(value)
     case _ => None
   }
 }
