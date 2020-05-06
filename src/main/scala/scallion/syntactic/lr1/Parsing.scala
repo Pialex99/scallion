@@ -384,7 +384,7 @@ trait Parsing { self: Syntaxes =>
       * @throws ConflictException when the `syntax` is not LR(1) and `enforceLR1` is not set to `false`.
       * @group parsing
       */
-    def apply[A](syntax: Syntax[A], enforceLR1: Boolean = true): LR1Parser[A] = {
+    def apply[A](syntax: Syntax[A], enforceLR1: Boolean = true): Parser[A] = {
       implicit val (rulesById, (firstSets, nullable)) = getRules(syntax)
       val (conflicts, actionTable, gotoTable) = generateTables
       if (enforceLR1 && !conflicts.isEmpty) 
@@ -540,11 +540,17 @@ trait Parsing { self: Syntaxes =>
       }
 
       override def apply(tokens: Iterator[Token]): ParseResult[A] = {
-        val result0 = tokens.foldLeft[Either[ParseResult[A], Stack]](Right(startingStack)) {
-          case (eitherStack, t) => eitherStack.flatMap(stack => applyAction(stack, Some(t)))
+        var res: Either[ParseResult[A], Stack] = Right(startingStack)
+        while (res.isRight && tokens.hasNext) {
+          res = res.flatMap(applyAction(_, Some(tokens.next())))
         }
-        val Left(res) = result0.flatMap(stack => applyAction(stack, None))
-        res
+        val Left(r) = res.flatMap(applyAction(_, None))
+        r
+        // val result0 = tokens.foldLeft[Either[ParseResult[A], Stack]](Right(startingStack)) {
+        //   case (eitherStack, t) => eitherStack.flatMap(stack => applyAction(stack, Some(t)))
+        // }
+        // val Left(res) = result0.flatMap(stack => applyAction(stack, None))
+        // res
       }
     }
   }
