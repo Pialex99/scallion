@@ -1,5 +1,7 @@
 package scallion.syntactic
 package cyk
+
+import scala.collection.mutable.WeakHashMap
 import scala.collection.immutable.Stream.Cons
 import scala.collection.immutable.Stream.Empty
 
@@ -67,24 +69,38 @@ trait Parsing { self: Syntaxes =>
       def apply(tokens: Iterator[Token]): ParseResult[A]
     }
 
+    private val syntaxToNetCache: WeakHashMap[Syntax[_], Net[_]] = WeakHashMap()
+
     def apply[A](syntax: Syntax[A]): Parser[A] = {
       var terminals: Map[Kind, Net.Elem] = Map()
-      def buildNet[B](s: Syntax[B]): Net[B] = s match {
-        case Syntax.Disjunction(left, right) => 
-          Net.Disjunction(buildNet(left), buildNet(right))
-        case Syntax.Elem(kind) => 
-          if (terminals contains kind) 
+      var recNets: Map[RecId, Net.Recursive[_]] = Map()
+      def buildNet[B](s: Syntax[B]): Net[B] =  {
+        val net: Net[B] = s match {
+          case Syntax.Disjunction(left, right) => 
+            Net.Disjunction[B](buildNet(left), buildNet(right))
+          case Syntax.Elem(kind) => 
+            if (!(terminals contains kind)) {
+              terminals += (kind -> Net.Elem(kind))
+            }
             terminals(kind)
-          else {
-            terminals += kind -> Net.Elem(kind)
-            terminals(kind)
-          }
-        case Syntax.Failure() => Net.Failure()
-        case Syntax.Sequence(left, right) => Net.Sequence(buildNet(left), buildNet(right))
-        case Syntax.Marked(_, inner) => buildNet(inner)
-        case Syntax.Success(value, _) => Net.Epsilon(value)
-        case Syntax.Transform(function, _, inner) => Net.Transfrom(function, buildNet(inner))
-        case r: Syntax.Recursive[_] => ???// TODO Not so simple buildNet(r.inner)
+          case Syntax.Failure() => Net.Failure[B]()
+          case Syntax.Sequence(left, right) => Net.Sequence(buildNet(left), buildNet(right))
+          case Syntax.Marked(_, inner) => buildNet(inner)
+          case Syntax.Success(value, _) => Net.Epsilon[B](value)
+          case Syntax.Transform(function, _, inner) => Net.Transfrom(function, buildNet(inner))
+          case r: Syntax.Recursive[_] => 
+            if (!(recNets contains r.id)) {
+              val rec = new Net.Recursive[B] {
+                override lazy val inner = syntaxToNetCache(r.inner).asInstanceOf[Net[B]]
+              }
+              recNets += r.id -> rec
+              buildNet(r.inner)
+              rec
+            } else 
+              recNets(r.id).asInstanceOf[Net.Recursive[B]]
+        }
+        syntaxToNetCache += s -> net
+        net
       }
       val root = buildNet(syntax)
       NetController(root, terminals)
@@ -157,6 +173,12 @@ trait Parsing { self: Syntaxes =>
               else 
                 vr #:: merge(l, tr)
           }
+      }
+
+      sealed abstract case class Recursive[A]() extends Net[A] {
+        val inner: Net[A]
+
+        override def getValues: Stream[Value[A]] = inner.getValues
       }
 
       // what about Recursive and Mark ?
