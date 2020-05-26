@@ -104,54 +104,36 @@ trait Parsing { self: Syntaxes =>
 
       val terminals: HashMap[Kind, Net.Elem] = HashMap()
       val recNets: HashMap[RecId, Net.Recursive[_]] = HashMap()
-      def buildNet[O, ta, tb](cell: SyntaxCell[O])(implicit env: O =:= ta ~ tb): Net[_, O] =  {
-        val net: Net[_, O] = cell match {
+      def buildNet[O](cell: SyntaxCell[O]): SyntaxNet[O] =  {
+        val net: SyntaxNet[O] = cell match {
           case SyntaxCell.Disjunction(left, right, s) => 
-            val leftNet: Net[_, O] = buildNet(left)
-            val rightNet: Net[_, O] = buildNet(right)
-            val dis: Net[O, O] = Net.Disjunction[O](cell.nullableCell.get)
-            leftNet.register(dis)
-            rightNet.register(dis)
-            dis
+            Net.Disjunction(buildNet(left), buildNet(right), cell.nullableCell.get)
           case SyntaxCell.Elem(kind, s) => 
             terminals.getOrElseUpdate(kind, Net.Elem(kind))
           case SyntaxCell.Failure(s) => 
             Net.Failure()
-          case seqCell: SyntaxCell.Sequence[ta, tb] => 
-            val SyntaxCell.Sequence(left, right, s) = seqCell
-            val leftNet: Net[_, ta] = buildNet(left)
-            val rightNet: Net[_, tb] = buildNet(right)
-            val seq: Net[Either[ta, tb], ta ~ tb] = Net.Sequence(leftNet, rightNet, cell.nullableCell.get)
-            leftNet.map[Either[ta, tb]](Left(_)).register(seq)
-            rightNet.map[Either[ta, tb]](Right(_)).register(seq)
-            seq
+          case SyntaxCell.Sequence(left, right, s) => 
+            Net.Sequence(buildNet(left), buildNet(right), cell.nullableCell.get)
           case SyntaxCell.Marked(_, inner, s) => 
-            val innerNet = buildNet(inner)
-            val mark = Net.Mark(cell.nullableCell.get)
-            innerNet.register(mark)
-            mark
+            Net.Mark(buildNet(inner), cell.nullableCell.get)
           case SyntaxCell.Success(value, _) => 
             Net.Epsilon[O](value)
-          case transfCell: SyntaxCell.Transform[ta, O] =>
-            val SyntaxCell.Transform(function, inner, _) = transfCell
-            val innerNet = buildNet(inner)
-            val transf = Net.Transfrom(function, cell.nullableCell.get)
-            innerNet.register(transf)
-          case r: SyntaxCell.Recursive[O] => 
-            if (!(recNets contains r.id)) {
-              val rec = new Net.Recursive[O] {
-                override lazy val inner = syntaxToNetCache(r.inner.syntax).asInstanceOf[Net[_, O]]
-              }
-              recNets += r.id -> rec
-              buildNet(r.inner)
+          case SyntaxCell.Transform(function, inner, s) =>
+            Net.Transfrom(buildNet(inner), function, cell.nullableCell.get)
+          case SyntaxCell.Recursive(inner, id, s) => 
+            if (!(recNets contains id)) {
+              val rec = Net.Recursive[O](syntaxToNetCache(s).asInstanceOf[Net[_, O]], cell.nullableCell.get, id)
+              recNets += id -> rec
+              buildNet(inner)
               rec
-            } else 
-              recNets(r.id).asInstanceOf[Net.Recursive[O]]
+            } else {
+              recNets(id).asInstanceOf[Net.Recursive[O]]
+            }
         }
         syntaxToNetCache += cell.syntax -> net
         net
       }
-      val root = buildNet(syntax)
+      val root = buildNet(cell)
       // NetController(root, terminals.toMap)
       ???
     }
@@ -270,9 +252,12 @@ trait Parsing { self: Syntaxes =>
         }
       }
     }
+    
+    private type SyntaxNet[A] = Net[_, A]
 
     private sealed trait Net[I, O] extends (Value[I] => Unit) { self =>
       val nullable: Option[O]
+      def init(): Unit
       def register(callback: Value[O] => Unit)
       def apply(value: Value[I]): Unit
 
@@ -282,15 +267,17 @@ trait Parsing { self: Syntaxes =>
         override def apply(value: Value[I]): Unit = self.apply(value)
       }
     }
-
+  
     private object Net {
       case class Failure[A]() extends Net[Nothing, A] {
+        override def init(): Unit = ()
         override val nullable: Option[Any] = None
         override def register(callback: Value[Any] => Unit): Unit = ()
         override def apply(value: Value[Nothing]): Unit = ()
       }
 
       case class Epsilon[A](value: A) extends Net[Nothing, A] {
+        override def init(): Unit = ()
         override val nullable: Option[A] = Some(value)
         override def register(callback: Value[A] => Unit): Unit = ()
         override def apply(value: Value[Nothing]): Unit = ()
@@ -298,6 +285,7 @@ trait Parsing { self: Syntaxes =>
 
       case class Elem(kind: Kind) extends Net[Token, Token] {
         private var registered: List[Value[Token] => Unit] = List()
+        override def init(): Unit = ()
         override val nullable: Option[Value[Token]] = None
         override def register(callback: Value[Token] => Unit): Unit = {
           registered = callback :: registered
@@ -307,8 +295,12 @@ trait Parsing { self: Syntaxes =>
         }
       }
 
-      case class Transfrom[I, O](function: I => O, nullable: Option[O]) extends Net[I, O] {
+      case class Transfrom[I, O](inner: Net[_, I], function: I => O, nullable: Option[O]) extends Net[I, O] {
         private var registered: List[Value[O] => Unit] = List()
+        override def init(): Unit = {
+          inner.register(this)
+          inner.init()
+        }
         override def register(callback: Value[O] => Unit): Unit = {
           registered = callback :: registered
         }
@@ -321,6 +313,13 @@ trait Parsing { self: Syntaxes =>
         private var registered: List[Value[A ~ B] => Unit] = List()
         private var fromLeft: List[Value[A]] = List()
         private var fromRight: List[Value[B]] = List()
+        override def init(): Unit = {
+          left.map(Left(_): Either[A, B]).register(this)
+          right.map(Right(_): Either[A, B]).register(this)
+
+          left.init()
+          right.init()
+        }
         override def register(callback: Value[A ~ B] => Unit): Unit = {
           registered = callback :: registered
         }        
@@ -353,8 +352,15 @@ trait Parsing { self: Syntaxes =>
         }
       }
 
-      case class Disjunction[A](nullable: Option[A]) extends Net[A, A] {
+      case class Disjunction[A](left: Net[_, A], right: Net[_, A], nullable: Option[A]) extends Net[A, A] {
         private var registered: List[Value[A] => Unit] = List()
+        override def init(): Unit = {
+          right.register(this)
+          left.register(this)
+          
+          right.init()
+          left.init()
+        }
         override def register(callback: Value[A] => Unit): Unit = {
           registered = callback :: registered
         }
@@ -363,8 +369,12 @@ trait Parsing { self: Syntaxes =>
         }
       }
 
-      case class Mark[A](nullable: Option[A]) extends Net[A, A] {
+      case class Mark[A](inner: Net[_, A], nullable: Option[A]) extends Net[A, A] {
         private var registered: List[Value[A] => Unit] = List()
+        override def init(): Unit = {
+          inner.register(this)
+          inner.init()
+        }
         override def register(callback: Value[A] => Unit): Unit = {
           registered = callback :: registered
         }
@@ -375,18 +385,42 @@ trait Parsing { self: Syntaxes =>
 
       abstract class Recursive[A] extends Net[A, A] {
         private var registered: List[Value[A] => Unit] = List()
-        private var active = false
+        private val values: HashMap[Int, HashMap[Int, A]] = HashMap()
+        private var initialized = false
+        val id: RecId
+        val inner: Net[_, A]
+        override def init(): Unit = {
+          if (!initialized) {
+            initialized = true
+            inner.register(this)
+            inner.init()
+          }
+        }
         override def register(callback: Value[A] => Unit): Unit = {
           registered = callback :: registered
         }
         override def apply(value: Value[A]): Unit = {
-          if (!active) {
-            active = true
+          if (!(values.contains(value.start) && values(value.start).contains(value.end))) {
+            values.getOrElseUpdate(value.start, HashMap((value.end, value.v)))
             registered.foreach(_(value))
           }
         }
-        def reset = {
-          active = false
+      }
+      object Recursive {
+        def apply[A](inner: => Net[_, A], nullableOpt: Option[A], recId: RecId): Net.Recursive[A] = {
+          new Net.Recursive[A] {
+            override lazy val inner: Net[_, A] = inner
+            override val nullable: Option[A] = nullableOpt
+            override val id: RecId = recId
+          }
+        }
+        def unapply[A](that: Net.Recursive[A]): Option[(Net[_, A], Option[A], RecId)] = {
+          if (that.isInstanceOf[Net.Recursive[A]]) {
+            val other = that.asInstanceOf[Net.Recursive[A]]
+            Some((other.inner, other.nullable, other.id))
+          } else {
+            None
+          }
         }
       }
     }
