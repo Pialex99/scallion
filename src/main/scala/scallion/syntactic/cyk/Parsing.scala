@@ -76,7 +76,7 @@ trait Parsing { self: Syntaxes =>
       def apply(tokens: Iterator[Token]): ParseResult[A]
     }
 
-    private val syntaxToNetCache: WeakHashMap[Syntax[_], Net[_, _]] = WeakHashMap()
+    private val syntaxToNetCache: WeakHashMap[Syntax[_], SyntaxNet[_]] = WeakHashMap()
 
     def apply[A](syntax: Syntax[A]): Parser[A] = {
       val recCell: HashMap[RecId, SyntaxCell[_]] = HashMap()
@@ -102,38 +102,39 @@ trait Parsing { self: Syntaxes =>
 
       cell.init()
 
-      val terminals: HashMap[Kind, Net.Elem] = HashMap()
-      val recNets: HashMap[RecId, Net.Recursive[_]] = HashMap()
+      val terminals: HashMap[Kind, SyntaxNet.Elem] = HashMap()
+      val recNets: HashMap[RecId, SyntaxNet.Recursive[_]] = HashMap()
       def buildNet[O](cell: SyntaxCell[O]): SyntaxNet[O] =  {
         val net: SyntaxNet[O] = cell match {
           case SyntaxCell.Disjunction(left, right, s) => 
-            Net.Disjunction(buildNet(left), buildNet(right), cell.nullableCell.get)
+            SyntaxNet.Disjunction(buildNet(left), buildNet(right), cell.nullableCell.get)
           case SyntaxCell.Elem(kind, s) => 
-            terminals.getOrElseUpdate(kind, Net.Elem(kind))
+            terminals.getOrElseUpdate(kind, SyntaxNet.Elem(kind))
           case SyntaxCell.Failure(s) => 
-            Net.Failure()
+            SyntaxNet.Failure()
           case SyntaxCell.Sequence(left, right, s) => 
-            Net.Sequence(buildNet(left), buildNet(right), cell.nullableCell.get)
+            SyntaxNet.Sequence(buildNet(left), buildNet(right), cell.nullableCell.get)
           case SyntaxCell.Marked(_, inner, s) => 
-            Net.Mark(buildNet(inner), cell.nullableCell.get)
+            SyntaxNet.Mark(buildNet(inner), cell.nullableCell.get)
           case SyntaxCell.Success(value, _) => 
-            Net.Epsilon[O](value)
+            SyntaxNet.Epsilon[O](value)
           case SyntaxCell.Transform(function, inner, s) =>
-            Net.Transfrom(buildNet(inner), function, cell.nullableCell.get)
+            SyntaxNet.Transfrom(buildNet(inner), function, cell.nullableCell.get)
           case SyntaxCell.Recursive(inner, id, s) => 
             if (!(recNets contains id)) {
-              val rec = Net.Recursive[O](syntaxToNetCache(s).asInstanceOf[Net[_, O]], cell.nullableCell.get, id)
+              val rec = SyntaxNet.Recursive[O](syntaxToNetCache(s).asInstanceOf[SyntaxNet[O]], cell.nullableCell.get, id)
               recNets += id -> rec
               buildNet(inner)
               rec
             } else {
-              recNets(id).asInstanceOf[Net.Recursive[O]]
+              recNets(id).asInstanceOf[SyntaxNet.Recursive[O]]
             }
         }
         syntaxToNetCache += cell.syntax -> net
         net
       }
       val root = buildNet(cell)
+      root.init()
       // NetController(root, terminals.toMap)
       ???
     }
@@ -150,10 +151,6 @@ trait Parsing { self: Syntaxes =>
     //       Parsed(res.map(_.v), /* TODO fix */ this)
     //   }
     // }
-
-    private case class Value[A](v: A, start: Int, end: Int) {
-      def map[B](f: A => B): Value[B] = Value(f(v), start, end)
-    }
 
     private sealed trait SyntaxCell[A] {
       def init(): Unit
@@ -252,171 +249,148 @@ trait Parsing { self: Syntaxes =>
         }
       }
     }
-    
-    private type SyntaxNet[A] = Net[_, A]
 
-    private sealed trait Net[I, O] extends (Value[I] => Unit) { self =>
-      val nullable: Option[O]
-      def init(): Unit
-      def register(callback: Value[O] => Unit)
-      def apply(value: Value[I]): Unit
-
-      def map[P](f: O => P): Net[I, P] = new Net[I, P] {
-        override val nullable: Option[P] = self.nullable.map(f)
-        override def register(callback: Value[P] => Unit): Unit = self.register(v => callback(v map f))
-        override def apply(value: Value[I]): Unit = self.apply(value)
-      }
+    private case class Value[+A](v: A, start: Int, end: Int) {
+      def map[B](f: A => B): Value[B] = Value(f(v), start, end)
     }
-  
-    private object Net {
-      case class Failure[A]() extends Net[Nothing, A] {
-        override def init(): Unit = ()
-        override val nullable: Option[Any] = None
-        override def register(callback: Value[Any] => Unit): Unit = ()
-        override def apply(value: Value[Nothing]): Unit = ()
+
+    private class Net[A] extends Cell[Value[A], Value[A], (Int, Int) => A] { self =>
+      private var registered: List[Value[A] => Unit] = List()
+      private val values: HashMap[(Int, Int), A] = HashMap()
+      override def register(callback: Value[A] => Unit) = {
+        registered = callback :: registered
       }
-
-      case class Epsilon[A](value: A) extends Net[Nothing, A] {
-        override def init(): Unit = ()
-        override val nullable: Option[A] = Some(value)
-        override def register(callback: Value[A] => Unit): Unit = ()
-        override def apply(value: Value[Nothing]): Unit = ()
+      override def apply(value: Value[A]) = value match {
+        case Value(v, start, end) =>
+          if (!values.contains((start, end))) {
+            values += (start, end) -> v
+            registered.foreach(_(value))
+          }
       }
+      override def get: (Int, Int) => A = values.toMap[(Int, Int), A]
+    }
 
-      case class Elem(kind: Kind) extends Net[Token, Token] {
-        private var registered: List[Value[Token] => Unit] = List()
-        override def init(): Unit = ()
-        override val nullable: Option[Value[Token]] = None
-        override def register(callback: Value[Token] => Unit): Unit = {
-          registered = callback :: registered
-        }
-        override def apply(value: Value[Token]): Unit = {
-          registered.foreach(_(value))
-        }
+    private class MergeNet[A, B](nullableLeft: Option[A], nullableRight: Option[B]) extends Cell[Either[Value[A], Value[B]], A ~ B, (Int, Int) => A ~ B] {
+      private var registered: List[Value[A ~ B] => Unit] = List()
+      private val values: HashMap[(Int, Int), A ~ B] = HashMap()
+
+      private val fromLeft: HashMap[Int, HashMap[Int, A]] = HashMap()
+      private val fromRight: HashMap[Int, HashMap[Int, B]] = HashMap()
+
+      override def register(callback: Value[A ~ B] => Unit) = {
+        registered = callback :: registered
       }
-
-      case class Transfrom[I, O](inner: Net[_, I], function: I => O, nullable: Option[O]) extends Net[I, O] {
-        private var registered: List[Value[O] => Unit] = List()
-        override def init(): Unit = {
-          inner.register(this)
-          inner.init()
-        }
-        override def register(callback: Value[O] => Unit): Unit = {
-          registered = callback :: registered
-        }
-        override def apply(value: Value[I]): Unit = {
-          registered.foreach(_(value map function))
-        }        
-      }
-
-      case class Sequence[A, B](left: Net[_, A], right: Net[_, B], nullable: Option[A ~ B]) extends Net[Either[A, B], A ~ B] {
-        private var registered: List[Value[A ~ B] => Unit] = List()
-        private var fromLeft: List[Value[A]] = List()
-        private var fromRight: List[Value[B]] = List()
-        override def init(): Unit = {
-          left.map(Left(_): Either[A, B]).register(this)
-          right.map(Right(_): Either[A, B]).register(this)
-
-          left.init()
-          right.init()
-        }
-        override def register(callback: Value[A ~ B] => Unit): Unit = {
-          registered = callback :: registered
-        }        
-        override def apply(value: Value[Either[A,B]]): Unit = {
-          val Value(eitherV, start, end) = value
-          val newValues = eitherV match {
-            case Left(v) => {
-              fromLeft = Value(v, start, end) :: fromLeft
-              val combinedWithRight = fromRight.filter(_.start == end).map {
-                  case Value(v1, _, end1) => Value(v ~ v1, start, end1)
-                }
-              if (right.nullable.isEmpty)
-                combinedWithRight
-              else 
-                Value(v ~ right.nullable.get, start, end)::combinedWithRight
+      override def apply(value: Either[Value[A], Value[B]]) = value match {
+        case Right(Value(v, start, end)) =>
+          if (!(fromRight.contains(start) && fromRight(start).contains(end))) {
+            fromRight.getOrElseUpdate(start, HashMap()) += end -> v
+            if (nullableLeft.isDefined && !values.contains((start, end))) {
+              values += (start, end) -> nullableLeft.get ~ v
+              registered.foreach(_(Value(nullableLeft.get ~ v, start, end)))
             }
-            case Right(v) => {
-              fromRight = Value(v, start, end) :: fromRight
-              val combinedWithLeft = fromLeft.filter(_.end == start).map {
-                  case Value(v1, _, end1) => Value(v1 ~ v, start, end1)
-                }
-              if (right.nullable.isEmpty)
-                combinedWithLeft
-              else 
-                Value(left.nullable.get ~ v, start, end)::combinedWithLeft
+            for ((s, va) <- fromLeft(start)) {
+              registered.foreach(_(Value(va ~ v, s, end)))
             }
           }
-          // TODO fix the following for only one value 
-          registered.foreach(c => newValues foreach(c(_)))
-        }
+        case Left(Value(v, start, end)) => 
+          if (!(fromLeft.contains(end) && fromLeft(end).contains(start))) {
+            fromLeft.getOrElseUpdate(end, HashMap()) += start -> v
+            if (nullableRight.isDefined && !values.contains((start, end))) {
+              values += (start, end) -> v ~ nullableRight.get
+              registered.foreach(_(Value(v ~ nullableRight.get, start, end)))
+            }
+            for ((e, vb) <- fromRight(end)) {
+              registered.foreach(_(Value(v ~ vb, start, e)))
+            }
+          }
+      }
+      override def get: (Int, Int) => A ~ B = values.toMap[(Int, Int), A ~ B]
+    }
+    
+    private sealed trait SyntaxNet[A] {
+      val net: Cell[Value[A], Value[A], (Int, Int) => A] = new Net[A]
+      val nullable: Option[A]
+      def init(): Unit
+    }
+  
+    private object SyntaxNet {
+      case class Failure[A]() extends SyntaxNet[A] {
+        override val nullable: Option[Any] = None
+        override def init(): Unit = ()
       }
 
-      case class Disjunction[A](left: Net[_, A], right: Net[_, A], nullable: Option[A]) extends Net[A, A] {
-        private var registered: List[Value[A] => Unit] = List()
-        override def init(): Unit = {
-          right.register(this)
-          left.register(this)
-          
-          right.init()
-          left.init()
-        }
-        override def register(callback: Value[A] => Unit): Unit = {
-          registered = callback :: registered
-        }
-        override def apply(value: Value[A]): Unit = {
-          registered.foreach(_(value))
-        }
+      case class Epsilon[A](value: A) extends SyntaxNet[A] {
+        override val nullable: Option[A] = Some(value)
+        override def init(): Unit = ()
       }
 
-      case class Mark[A](inner: Net[_, A], nullable: Option[A]) extends Net[A, A] {
-        private var registered: List[Value[A] => Unit] = List()
+      case class Elem(kind: Kind) extends SyntaxNet[Token] {
+        override val nullable: Option[Value[Token]] = None
+        override def init(): Unit = ()
+      }
+
+      case class Transfrom[I, O](inner: SyntaxNet[I], function: I => O, nullable: Option[O]) extends SyntaxNet[O] {
         override def init(): Unit = {
-          inner.register(this)
           inner.init()
-        }
-        override def register(callback: Value[A] => Unit): Unit = {
-          registered = callback :: registered
-        }
-        override def apply(value: Value[A]): Unit = {
-          registered.foreach(_(value))
+          
+          inner.net.map((v: Value[I]) => v map function).register(this.net)
         }
       }
 
-      abstract class Recursive[A] extends Net[A, A] {
-        private var registered: List[Value[A] => Unit] = List()
-        private val values: HashMap[Int, HashMap[Int, A]] = HashMap()
+      case class Sequence[A, B](left: SyntaxNet[A], right: SyntaxNet[B], nullable: Option[A ~ B]) extends SyntaxNet[A ~ B] {
+        override def init(): Unit = {
+          left.init()
+          right.init()
+          
+          val mergeNet = new MergeNet(left.nullable, right.nullable)
+          mergeNet.register(this.net)
+
+          left.net.map(Left(_)).register(mergeNet)
+          right.net.map(Right(_)).register(mergeNet)
+        }
+      }
+
+      case class Disjunction[A](left: SyntaxNet[A], right: SyntaxNet[A], nullable: Option[A]) extends SyntaxNet[A] {
+        override def init(): Unit = {
+          left.init()
+          right.init()
+
+          left.net.register(this.net)
+          right.net.register(this.net)
+        }
+      }
+
+      case class Mark[A](inner: SyntaxNet[A], nullable: Option[A]) extends SyntaxNet[A] {
+        override def init(): Unit = {
+          inner.init()
+
+          inner.net.register(this.net)
+        }
+      }
+
+      abstract class Recursive[A] extends SyntaxNet[A] {
         private var initialized = false
         val id: RecId
-        val inner: Net[_, A]
+        val inner: SyntaxNet[A]
         override def init(): Unit = {
           if (!initialized) {
             initialized = true
-            inner.register(this)
+            inner.net.register(this.net)
             inner.init()
-          }
-        }
-        override def register(callback: Value[A] => Unit): Unit = {
-          registered = callback :: registered
-        }
-        override def apply(value: Value[A]): Unit = {
-          if (!(values.contains(value.start) && values(value.start).contains(value.end))) {
-            values.getOrElseUpdate(value.start, HashMap((value.end, value.v)))
-            registered.foreach(_(value))
           }
         }
       }
       object Recursive {
-        def apply[A](inner: => Net[_, A], nullableOpt: Option[A], recId: RecId): Net.Recursive[A] = {
-          new Net.Recursive[A] {
-            override lazy val inner: Net[_, A] = inner
+        def apply[A](inner: => SyntaxNet[A], nullableOpt: Option[A], recId: RecId): Recursive[A] = {
+          new Recursive[A] {
+            override lazy val inner: SyntaxNet[A] = inner
             override val nullable: Option[A] = nullableOpt
             override val id: RecId = recId
           }
         }
-        def unapply[A](that: Net.Recursive[A]): Option[(Net[_, A], Option[A], RecId)] = {
-          if (that.isInstanceOf[Net.Recursive[A]]) {
-            val other = that.asInstanceOf[Net.Recursive[A]]
+        def unapply[A](that: Recursive[A]): Option[(SyntaxNet[A], Option[A], RecId)] = {
+          if (that.isInstanceOf[Recursive[A]]) {
+            val other = that.asInstanceOf[Recursive[A]]
             Some((other.inner, other.nullable, other.id))
           } else {
             None
