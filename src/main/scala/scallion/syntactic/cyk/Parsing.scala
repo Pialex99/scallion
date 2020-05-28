@@ -2,6 +2,7 @@ package scallion.syntactic
 package cyk
 
 import scallion.util.internal.Cell
+import scallion.util.internal.BooleanCell
 import scallion.util.internal.OptionCell
 import scallion.util.internal.MergeOnceCell
 import scallion.util.internal.SetCell
@@ -99,10 +100,18 @@ trait Parsing { self: Syntaxes =>
 
       val terminals: HashMap[Kind, SyntaxNet.Elem] = HashMap()
       val recNets: HashMap[RecId, SyntaxNet.Recursive[_]] = HashMap()
-      def buildNet[O](cell: SyntaxCell[O]): SyntaxNet[O] =  {
+      def buildNet[O](cell: SyntaxCell[O]): SyntaxNet[O] = {
         val net: SyntaxNet[O] = cell match {
           case SyntaxCell.Disjunction(left, right, _) => 
-            SyntaxNet.Disjunction(buildNet(left), buildNet(right), cell.nullableCell.get)
+            // if the left and the right are not productives then the all syntax would not be productive so we should not be here
+            if (!left.productiveCell.get) {
+              assert(right.productiveCell.get)
+              buildNet(right)
+            } else if (!right.productiveCell.get) {
+              assert(left.productiveCell.get)
+              buildNet(left)
+            } else 
+              SyntaxNet.Disjunction(buildNet(left), buildNet(right), cell.nullableCell.get)
           case SyntaxCell.Elem(kind, _) => 
             terminals.getOrElseUpdate(kind, SyntaxNet.Elem(kind))
           case SyntaxCell.Failure(_) => 
@@ -157,12 +166,14 @@ trait Parsing { self: Syntaxes =>
 
       val syntax: Syntax[A]
       val nullableCell: Cell[A, A, Option[A]] = new OptionCell[A]
+      val productiveCell: Cell[Unit, Unit, Boolean] = new BooleanCell
     }
 
     private object SyntaxCell {
       case class Success[A](value: A, syntax: Syntax[A]) extends SyntaxCell[A] {
         override def init(): Unit = {
           nullableCell(value)
+          productiveCell(())
         }
       }
 
@@ -171,7 +182,9 @@ trait Parsing { self: Syntaxes =>
       }
 
       case class Elem(kind: Kind, syntax: Syntax[Token]) extends SyntaxCell[Token] {
-        override def init(): Unit = ()
+        override def init(): Unit = {
+          productiveCell(())
+        }
       }
 
       case class Transform[A, B](function: A => B, inner: SyntaxCell[A], syntax: Syntax[B]) extends SyntaxCell[B] {
@@ -179,6 +192,7 @@ trait Parsing { self: Syntaxes =>
           inner.init()
 
           inner.nullableCell.register(nullableCell.contramap(function))
+          inner.productiveCell.register(productiveCell)
         }
       }
 
@@ -187,6 +201,7 @@ trait Parsing { self: Syntaxes =>
           inner.init()
 
           inner.nullableCell.register(nullableCell)
+          inner.productiveCell.register(productiveCell)
         }
       }
 
@@ -201,6 +216,13 @@ trait Parsing { self: Syntaxes =>
           left.nullableCell.register(mergeNullable.contramap(Left(_)))
           right.nullableCell.register(mergeNullable.contramap(Right(_)))
           mergeNullable.register(nullableCell)
+
+          val mergeProductive: Cell[Either[Unit, Unit], Unit, Option[Unit]] =
+            new MergeOnceCell[Unit, Unit, Unit]((_, _) => ())
+
+          left.productiveCell.register(mergeProductive.contramap(Left(_)))
+          right.productiveCell.register(mergeProductive.contramap(Right(_)))
+          mergeProductive.register(productiveCell)
         }
       }
 
@@ -211,6 +233,9 @@ trait Parsing { self: Syntaxes =>
 
           left.nullableCell.register(nullableCell)
           right.nullableCell.register(nullableCell)
+
+          left.productiveCell.register(productiveCell)
+          right.productiveCell.register(productiveCell)
         }
       }
 
@@ -226,6 +251,8 @@ trait Parsing { self: Syntaxes =>
             inner.init()
 
             inner.nullableCell.register(nullableCell)
+
+            inner.productiveCell.register(productiveCell)
           }
         }
       }
@@ -373,7 +400,6 @@ trait Parsing { self: Syntaxes =>
         val inner: SyntaxNet[A]
         override def init(): Unit = {
           if (!initialized) {
-            print(s"initializing rec : {$id}")
             initialized = true
             inner.init()
 
@@ -382,9 +408,9 @@ trait Parsing { self: Syntaxes =>
         }
       }
       object Recursive {
-        def apply[A](inner: => SyntaxNet[A], nullableOpt: Option[A], recId: RecId): Recursive[A] = {
+        def apply[A](innerNet: => SyntaxNet[A], nullableOpt: Option[A], recId: RecId): Recursive[A] = {
           new Recursive[A] {
-            override lazy val inner: SyntaxNet[A] = inner
+            override lazy val inner: SyntaxNet[A] = innerNet
             override val nullable: Option[A] = nullableOpt
             override val id: RecId = recId
           }
