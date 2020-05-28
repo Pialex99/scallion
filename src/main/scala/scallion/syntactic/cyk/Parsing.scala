@@ -29,14 +29,9 @@ trait Parsing { self: Syntaxes =>
       val rest: Parser[A]
 
       /** Returns the parsed value, if any. */
-      def getValue: Option[A] = this.getValues match {
-        case c #:: _ => Some(c)
-        case Empty => None
-      }
-
-      def getValues: Stream[A] = this match {
-        case Parsed(value, _) => value
-        case _ => Empty
+      def getValue: Option[A] = this match {
+        case Parsed(v, _) => Some(v)
+        case _ => None
       }
     }
 
@@ -49,7 +44,7 @@ trait Parsing { self: Syntaxes =>
       *
       * @group result
       */
-    case class Parsed[A](value: Stream[A], rest: Parser[A]) extends ParseResult[A]
+    case class Parsed[A](value: A, rest: Parser[A]) extends ParseResult[A]
 
     /** Indicates that the provided `token` was not expected at that point.
       *
@@ -106,23 +101,23 @@ trait Parsing { self: Syntaxes =>
       val recNets: HashMap[RecId, SyntaxNet.Recursive[_]] = HashMap()
       def buildNet[O](cell: SyntaxCell[O]): SyntaxNet[O] =  {
         val net: SyntaxNet[O] = cell match {
-          case SyntaxCell.Disjunction(left, right, s) => 
+          case SyntaxCell.Disjunction(left, right, _) => 
             SyntaxNet.Disjunction(buildNet(left), buildNet(right), cell.nullableCell.get)
-          case SyntaxCell.Elem(kind, s) => 
+          case SyntaxCell.Elem(kind, _) => 
             terminals.getOrElseUpdate(kind, SyntaxNet.Elem(kind))
-          case SyntaxCell.Failure(s) => 
+          case SyntaxCell.Failure(_) => 
             SyntaxNet.Failure()
-          case SyntaxCell.Sequence(left, right, s) => 
+          case SyntaxCell.Sequence(left, right, _) => 
             SyntaxNet.Sequence(buildNet(left), buildNet(right), cell.nullableCell.get)
-          case SyntaxCell.Marked(_, inner, s) => 
+          case SyntaxCell.Marked(_, inner, _) => 
             SyntaxNet.Mark(buildNet(inner), cell.nullableCell.get)
           case SyntaxCell.Success(value, _) => 
             SyntaxNet.Epsilon[O](value)
-          case SyntaxCell.Transform(function, inner, s) =>
+          case SyntaxCell.Transform(function, inner, _) =>
             SyntaxNet.Transfrom(buildNet(inner), function, cell.nullableCell.get)
-          case SyntaxCell.Recursive(inner, id, s) => 
+          case SyntaxCell.Recursive(inner, id, _) => 
             if (!(recNets contains id)) {
-              val rec = SyntaxNet.Recursive[O](syntaxToNetCache(s).asInstanceOf[SyntaxNet[O]], cell.nullableCell.get, id)
+              val rec = SyntaxNet.Recursive[O](syntaxToNetCache(inner.syntax).asInstanceOf[SyntaxNet[O]], cell.nullableCell.get, id)
               recNets += id -> rec
               buildNet(inner)
               rec
@@ -133,24 +128,29 @@ trait Parsing { self: Syntaxes =>
         syntaxToNetCache += cell.syntax -> net
         net
       }
+
       val root = buildNet(cell)
       root.init()
-      // NetController(root, terminals.toMap)
-      ???
+      NetController(root, terminals.toMap)
     }
 
-    // private case class NetController[A](root: Net[_, A], terminals: Map[Kind, Net.Elem], recs: List[Net.Recursive[_]]) extends Parser[A] {
-    //   override def apply(tokens: Iterator[Token]): ParseResult[A] = {
-    //     tokens.toStream.zipWithIndex.groupBy(_._1).mapValues(_.map{ case (t, i) => Value(t, i, i + 1) }).foreach {
-    //       case (t, values) => terminals(getKind(t)).setValues(values)
-    //     }
-    //     val res = root.getValues
-    //     if (res.isEmpty) 
-    //       ???
-    //     else
-    //       Parsed(res.map(_.v), /* TODO fix */ this)
-    //   }
-    // }
+    private case class NetController[A](root: SyntaxNet[A], terminals: Map[Kind, SyntaxNet.Elem]) extends Parser[A] {
+      override def apply(tokens: Iterator[Token]): ParseResult[A] = {
+        var index = 0
+        while (tokens.hasNext) {
+          val token = tokens.next()
+          if (!terminals.contains(getKind(token)))
+            return UnexpectedToken(token, this)
+          terminals(getKind(token)).net.apply(Value(token, index, index + 1))
+          index += 1
+        }
+        val res = if (index == 0) root.nullable else root.net.get(0, index)
+        res match {
+          case Some(value) => Parsed(value, this)
+          case None => UnexpectedEnd(this)
+        }
+      }
+    }
 
     private sealed trait SyntaxCell[A] {
       def init(): Unit
@@ -223,7 +223,6 @@ trait Parsing { self: Syntaxes =>
         override def init(): Unit = {
           if (!inited) {
             inited = true
-
             inner.init()
 
             inner.nullableCell.register(nullableCell)
@@ -254,7 +253,7 @@ trait Parsing { self: Syntaxes =>
       def map[B](f: A => B): Value[B] = Value(f(v), start, end)
     }
 
-    private class Net[A] extends Cell[Value[A], Value[A], (Int, Int) => A] { self =>
+    private class Net[A] extends Cell[Value[A], Value[A], (Int, Int) => Option[A]] { self =>
       private var registered: List[Value[A] => Unit] = List()
       private val values: HashMap[(Int, Int), A] = HashMap()
       override def register(callback: Value[A] => Unit) = {
@@ -267,10 +266,10 @@ trait Parsing { self: Syntaxes =>
             registered.foreach(_(value))
           }
       }
-      override def get: (Int, Int) => A = values.toMap[(Int, Int), A]
+      override def get: (Int, Int) => Option[A] = (s, e) => values.get((s, e))
     }
 
-    private class MergeNet[A, B](nullableLeft: Option[A], nullableRight: Option[B]) extends Cell[Either[Value[A], Value[B]], A ~ B, (Int, Int) => A ~ B] {
+    private class MergeNet[A, B](nullableLeft: Option[A], nullableRight: Option[B]) extends Cell[Either[Value[A], Value[B]], Value[A ~ B], (Int, Int) => Option[A ~ B]] {
       private var registered: List[Value[A ~ B] => Unit] = List()
       private val values: HashMap[(Int, Int), A ~ B] = HashMap()
 
@@ -304,18 +303,18 @@ trait Parsing { self: Syntaxes =>
             }
           }
       }
-      override def get: (Int, Int) => A ~ B = values.toMap[(Int, Int), A ~ B]
+      override def get: (Int, Int) => Option[A ~ B] = (s, e) => values.get((s, e))
     }
     
     private sealed trait SyntaxNet[A] {
-      val net: Cell[Value[A], Value[A], (Int, Int) => A] = new Net[A]
+      val net: Cell[Value[A], Value[A], (Int, Int) => Option[A]] = new Net[A]
       val nullable: Option[A]
       def init(): Unit
     }
   
     private object SyntaxNet {
       case class Failure[A]() extends SyntaxNet[A] {
-        override val nullable: Option[Any] = None
+        override val nullable: Option[A] = None
         override def init(): Unit = ()
       }
 
@@ -325,7 +324,7 @@ trait Parsing { self: Syntaxes =>
       }
 
       case class Elem(kind: Kind) extends SyntaxNet[Token] {
-        override val nullable: Option[Value[Token]] = None
+        override val nullable: Option[Token] = None
         override def init(): Unit = ()
       }
 
@@ -374,9 +373,11 @@ trait Parsing { self: Syntaxes =>
         val inner: SyntaxNet[A]
         override def init(): Unit = {
           if (!initialized) {
+            print(s"initializing rec : {$id}")
             initialized = true
-            inner.net.register(this.net)
             inner.init()
+
+            inner.net.register(this.net)
           }
         }
       }
