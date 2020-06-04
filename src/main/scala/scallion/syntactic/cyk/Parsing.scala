@@ -140,12 +140,13 @@ trait Parsing { self: Syntaxes =>
 
       val root = buildNet(cell)
       root.init()
-      NetController(root, terminals.toMap)
+      NetController(root, terminals.toMap, 0)
     }
 
-    private case class NetController[A](root: SyntaxNet[A], terminals: Map[Kind, SyntaxNet.Elem]) extends Parser[A] {
+    private case class NetController[A](root: SyntaxNet[A], terminals: Map[Kind, SyntaxNet.Elem], startingIndex: Int) extends Parser[A] {
       override def apply(tokens: Iterator[Token]): ParseResult[A] = {
-        var index = 0
+        var index = startingIndex
+        val workingRoot = 
         while (tokens.hasNext) {
           val token = tokens.next()
           if (!terminals.contains(getKind(token)))
@@ -314,8 +315,10 @@ trait Parsing { self: Syntaxes =>
               values += (start, end) -> nullableLeft.get ~ v
               registered.foreach(_(Value(nullableLeft.get ~ v, start, end)))
             }
-            for ((s, va) <- fromLeft(start)) {
-              registered.foreach(_(Value(va ~ v, s, end)))
+            if (fromLeft contains start) {
+              for ((s, va) <- fromLeft(start)) {
+                registered.foreach(_(Value(va ~ v, s, end)))
+              }
             }
           }
         case Left(Value(v, start, end)) => 
@@ -325,8 +328,10 @@ trait Parsing { self: Syntaxes =>
               values += (start, end) -> v ~ nullableRight.get
               registered.foreach(_(Value(v ~ nullableRight.get, start, end)))
             }
-            for ((e, vb) <- fromRight(end)) {
-              registered.foreach(_(Value(v ~ vb, start, e)))
+            if (fromRight contains end) {
+              for ((e, vb) <- fromRight(end)) {
+                registered.foreach(_(Value(v ~ vb, start, e)))
+              }
             }
           }
       }
@@ -337,22 +342,26 @@ trait Parsing { self: Syntaxes =>
       val net: Cell[Value[A], Value[A], (Int, Int) => Option[A]] = new Net[A]
       val nullable: Option[A]
       def init(): Unit
+      // def copy(): SyntaxNet[A]
     }
   
     private object SyntaxNet {
       case class Failure[A]() extends SyntaxNet[A] {
         override val nullable: Option[A] = None
         override def init(): Unit = ()
+        // override def copy(): SyntaxNet[A] = Failure[A]()
       }
 
       case class Epsilon[A](value: A) extends SyntaxNet[A] {
         override val nullable: Option[A] = Some(value)
         override def init(): Unit = ()
+        // override def copy(): SyntaxNet[A] = Epsilon(value)
       }
 
       case class Elem(kind: Kind) extends SyntaxNet[Token] {
         override val nullable: Option[Token] = None
         override def init(): Unit = ()
+        // override def copy(): SyntaxNet[Token] = Elem(kind)
       }
 
       case class Transfrom[I, O](inner: SyntaxNet[I], function: I => O, nullable: Option[O]) extends SyntaxNet[O] {
