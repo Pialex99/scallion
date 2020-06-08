@@ -140,24 +140,27 @@ trait Parsing { self: Syntaxes =>
 
       val root = buildNet(cell)
       root.init()
-      NetController(root, terminals.toMap, 0)
+      NetController(root, terminals.toMap)
     }
 
-    private case class NetController[A](root: SyntaxNet[A], terminals: Map[Kind, SyntaxNet.Elem], startingIndex: Int) extends Parser[A] {
+    private case class NetController[A](root: SyntaxNet[A], terminals: Map[Kind, SyntaxNet[Token]], startingIndex: Int = 0) extends Parser[A] {
       override def apply(tokens: Iterator[Token]): ParseResult[A] = {
         var index = startingIndex
-        val workingRoot = 
+        val workingTerminal = terminals.map{ case (kind, elem) => kind -> elem.copy() }
+        val workingRoot = root.copy()
+        workingRoot.init()
+        root.resetCopy()
         while (tokens.hasNext) {
           val token = tokens.next()
-          if (!terminals.contains(getKind(token)))
-            return UnexpectedToken(token, this)
-          terminals(getKind(token)).net.apply(Value(token, index, index + 1))
+          if (!workingTerminal.contains(getKind(token)))
+            return UnexpectedToken(token, NetController(workingRoot, workingTerminal, startingIndex))
+          workingTerminal(getKind(token)).net.apply(Value(token, index, index + 1))
           index += 1
         }
-        val res = if (index == 0) root.nullable else root.net.get(0, index)
+        val res = if (index == 0) workingRoot.nullable else workingRoot.net.get(0, index)
         res match {
-          case Some(value) => Parsed(value, this)
-          case None => UnexpectedEnd(this)
+          case Some(value) => Parsed(value, NetController(workingRoot, workingTerminal, index))
+          case None => UnexpectedEnd(NetController(workingRoot, workingTerminal, index))
         }
       }
     }
@@ -281,7 +284,7 @@ trait Parsing { self: Syntaxes =>
       def map[B](f: A => B): Value[B] = Value(f(v), start, end)
     }
 
-    private class Net[A] extends Cell[Value[A], Value[A], (Int, Int) => Option[A]] { self =>
+    private class Net[A] extends Cell[Value[A], Value[A], (Int, Int) => Option[A]] {
       private var registered: List[Value[A] => Unit] = List()
       private val values: HashMap[(Int, Int), A] = HashMap()
       override def register(callback: Value[A] => Unit) = {
@@ -295,6 +298,10 @@ trait Parsing { self: Syntaxes =>
           }
       }
       override def get: (Int, Int) => Option[A] = (s, e) => values.get((s, e))
+
+      def copyValueTo(other: Net[A]): Unit = {
+        other.values ++= values
+      }
     }
 
     private class MergeNet[A, B](nullableLeft: Option[A], nullableRight: Option[B]) extends Cell[Either[Value[A], Value[B]], Value[A ~ B], (Int, Int) => Option[A ~ B]] {
@@ -336,56 +343,108 @@ trait Parsing { self: Syntaxes =>
           }
       }
       override def get: (Int, Int) => Option[A ~ B] = (s, e) => values.get((s, e))
+      def copyValueTo(other: MergeNet[A, B]): Unit = {
+        other.values ++= values
+        other.fromLeft ++= fromLeft
+        other.fromRight ++= fromRight
+      }
     }
     
     private sealed trait SyntaxNet[A] {
-      val net: Cell[Value[A], Value[A], (Int, Int) => Option[A]] = new Net[A]
+      val net: Net[A] = new Net[A]
       val nullable: Option[A]
       def init(): Unit
-      // def copy(): SyntaxNet[A]
+      def copy(): SyntaxNet[A]
+      def resetCopy(): Unit
     }
   
     private object SyntaxNet {
       case class Failure[A]() extends SyntaxNet[A] {
         override val nullable: Option[A] = None
         override def init(): Unit = ()
-        // override def copy(): SyntaxNet[A] = Failure[A]()
+        override def copy(): SyntaxNet[A] = Failure[A]()
+        override def resetCopy(): Unit = ()
       }
 
       case class Epsilon[A](value: A) extends SyntaxNet[A] {
         override val nullable: Option[A] = Some(value)
         override def init(): Unit = ()
-        // override def copy(): SyntaxNet[A] = Epsilon(value)
+        override def copy(): SyntaxNet[A] = Epsilon(value)
+        override def resetCopy(): Unit = ()
       }
 
       case class Elem(kind: Kind) extends SyntaxNet[Token] {
+        private var copied: Option[SyntaxNet[Token]] = None
         override val nullable: Option[Token] = None
         override def init(): Unit = ()
-        // override def copy(): SyntaxNet[Token] = Elem(kind)
+        override def copy(): SyntaxNet[Token] =
+          copied getOrElse {
+            val res = Elem(kind)
+            net.copyValueTo(res.net)
+            copied = Some(res)
+            res
+          }
+        override def resetCopy(): Unit = copied = None
       }
 
       case class Transfrom[I, O](inner: SyntaxNet[I], function: I => O, nullable: Option[O]) extends SyntaxNet[O] {
+        private var copied: Option[SyntaxNet[O]] = None
         override def init(): Unit = {
           inner.init()
           
-          inner.net.map((v: Value[I]) => v map function).register(this.net)
+          inner.net.map((v: Value[I]) => v map function).register(net)
+        }
+        override def copy(): SyntaxNet[O] = {
+          copied getOrElse {
+            val res = Transfrom(inner.copy(), function, nullable)
+            net.copyValueTo(res.net)
+            copied = Some(res)
+            res
+          }
+        }
+        override def resetCopy(): Unit = {
+          if (copied.isDefined) {
+            copied = None
+            inner.resetCopy()
+          }
         }
       }
 
       case class Sequence[A, B](left: SyntaxNet[A], right: SyntaxNet[B], nullable: Option[A ~ B]) extends SyntaxNet[A ~ B] {
+        private val mergeNet: MergeNet[A, B] = new MergeNet(left.nullable, right.nullable)
+        private var copied: Option[SyntaxNet[A ~ B]] = None
         override def init(): Unit = {
           left.init()
           right.init()
           
-          val mergeNet = new MergeNet(left.nullable, right.nullable)
-          mergeNet.register(this.net)
+          mergeNet.register(net)
 
           left.net.map(Left(_)).register(mergeNet)
           right.net.map(Right(_)).register(mergeNet)
         }
+
+        override def copy(): SyntaxNet[A ~ B] = {
+          copied getOrElse {
+            val res = Sequence(left.copy(), right.copy(), nullable)
+            net.copyValueTo(res.net)
+            mergeNet.copyValueTo(res.mergeNet)
+            copied = Some(res)
+            res
+          }
+        }
+
+        override def resetCopy(): Unit = {
+          if (copied.isDefined) {
+            copied = None
+
+            left.resetCopy()
+            right.resetCopy()
+          }
+        }
       }
 
       case class Disjunction[A](left: SyntaxNet[A], right: SyntaxNet[A], nullable: Option[A]) extends SyntaxNet[A] {
+        private var copied: Option[SyntaxNet[A]] = None
         override def init(): Unit = {
           left.init()
           right.init()
@@ -393,18 +452,51 @@ trait Parsing { self: Syntaxes =>
           left.net.register(this.net)
           right.net.register(this.net)
         }
+        override def copy(): SyntaxNet[A] = {
+          copied getOrElse {
+            val res = Disjunction(left.copy(), right.copy(), nullable)
+            net.copyValueTo(res.net)
+            copied = Some(res)
+            res
+          }
+        }
+        override def resetCopy(): Unit = {
+          if (copied.isDefined) {
+            copied = None
+
+            left.resetCopy()
+            right.resetCopy()
+          }
+        }      
       }
 
       case class Mark[A](inner: SyntaxNet[A], nullable: Option[A]) extends SyntaxNet[A] {
+        private var copied: Option[SyntaxNet[A]] = None
         override def init(): Unit = {
           inner.init()
 
           inner.net.register(this.net)
         }
+        override def copy(): SyntaxNet[A] = {
+          copied getOrElse {
+            val res = Mark(inner.copy(), nullable)
+            net.copyValueTo(res.net)
+            copied = Some(res)
+            res
+          }
+        }
+        
+        override def resetCopy(): Unit = {
+          if (copied.isDefined) {
+            copied = None
+            inner.resetCopy()
+          }
+        }      
       }
 
       abstract class Recursive[A] extends SyntaxNet[A] {
         private var initialized = false
+        private var copied: Option[SyntaxNet[A]] = None
         val id: RecId
         val inner: SyntaxNet[A]
         override def init(): Unit = {
@@ -413,6 +505,20 @@ trait Parsing { self: Syntaxes =>
             inner.init()
 
             inner.net.register(this.net)
+          }
+        }
+        override def copy(): SyntaxNet[A] = {
+          copied getOrElse {
+            val res = Recursive(inner.copy(), nullable, id)
+            net.copyValueTo(res.net)
+            copied = Some(res)
+            res
+          }
+        }
+        override def resetCopy(): Unit = {
+          if (copied.isDefined) {
+            copied = None
+            inner.resetCopy()
           }
         }
       }
