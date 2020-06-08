@@ -80,12 +80,23 @@ class ZippyGenPWD extends BenchmarkTokens {
   }
 }
 
-class LR1PWD extends BenchmarkTokens {
+class LR1 extends BenchmarkTokens {
   performance of "LR1 Parsing" in {
     measure method "parse" in {
       using(tokens) in { ts =>
         val parser = new ScallionParser
         assert(parser.lr1Apply(ts.toIterator).nonEmpty)
+      }
+    }
+  } 
+}
+
+class CYK extends BenchmarkTokens {
+  performance of "CYK Parsing" in {
+    measure method "parse" in {
+      using(tokens) in { ts =>
+        val parser = new ScallionParser
+        assert(parser.cykApply(ts.toIterator).nonEmpty)
       }
     }
   } 

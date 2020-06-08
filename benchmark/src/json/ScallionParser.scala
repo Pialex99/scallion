@@ -6,7 +6,7 @@ import scallion.input._
 import scallion.lexical._
 import scallion.syntactic._
 
-class ScallionParser extends Syntaxes with ll1.Parsing with gzpwd.Parsing with simplell1.Parsing with lr1.Parsing {
+class ScallionParser extends Syntaxes with ll1.Parsing with gzpwd.Parsing with simplell1.Parsing with lr1.Parsing with cyk.Parsing {
 
   type Token = json.Token
   type Kind = TokenClass
@@ -73,6 +73,8 @@ class ScallionParser extends Syntaxes with ll1.Parsing with gzpwd.Parsing with s
 
   lazy val lr1Parser = LR1(value)
 
+  lazy val cykParser = CYK(value)
+
   def apply(it: Iterator[Token]): Option[Value] = parser(it).getValue
 
   def genApply(it: Iterator[Token]): Option[Value] = genParser(it).getValue
@@ -80,4 +82,6 @@ class ScallionParser extends Syntaxes with ll1.Parsing with gzpwd.Parsing with s
   def simpleApply(it: Iterator[Token]): Option[Value] = simpleParser(it).getValue
 
   def lr1Apply(it: Iterator[Token]): Option[Value] = lr1Parser(it).getValue
+  
+  def cykApply(it: Iterator[Token]): Option[Value] = cykParser(it).getValue
 }
