@@ -276,3 +276,107 @@ class JSONLR1ParserTests extends FlatSpec with Inside {
     }
   }
 }
+
+
+class JSONCYKParserTests extends FlatSpec with Inside {
+
+  def parse(text: String): Option[Value] =
+    JSONParserCYK(JSONLexer(text.iterator)).getValue
+
+  "JSON Parser" should "parse some basic examples" in {
+
+    inside(parse("1.0")) {
+      case Some(NumberValue(value, position)) => {
+        assert(value == 1.0)
+        assert(position == (0, 3))
+      }
+    }
+
+    inside(parse("true")) {
+      case Some(BooleanValue(value, position)) => {
+        assert(value == true)
+        assert(position == (0, 4))
+      }
+    }
+
+    inside(parse("null")) {
+      case Some(NullValue(position)) => {
+        assert(position == (0, 4))
+      }
+    }
+
+    inside(parse("[]")) {
+      case Some(ArrayValue(values, position)) => {
+        assert(values.size == 0)
+        assert(position == (0, 2))
+      }
+    }
+
+    inside(parse("{}")) {
+      case Some(ObjectValue(values, position)) => {
+        assert(values.size == 0)
+        assert(position == (0, 2))
+      }
+    }
+
+    inside(parse("""  "Hello World!" """)) {
+      case Some(StringValue(value, position)) => {
+        assert(value == "Hello World!")
+        assert(position == (2, 16))
+      }
+    }
+
+    inside(parse("""{"hello": null, "hi": "there"}""")) {
+      case Some(ObjectValue(values, position)) => {
+        assert(values.size == 2)
+
+        inside(values(0)) {
+          case (StringValue(key, keyPosition), NullValue(position)) => {
+            assert(key == "hello")
+          }
+        }
+
+        inside(values(1)) {
+          case (StringValue(key, keyPosition), StringValue(value, position)) => {
+            assert(key == "hi")
+            assert(value == "there")
+          }
+        }
+      }
+    }
+
+    inside(parse("""["Hello", null, [42, {}]]""")) {
+      case Some(ArrayValue(values, position)) => {
+        assert(values.size == 3)
+
+        inside(values(0)) {
+          case StringValue(value, position) => {
+            assert(value == "Hello")
+          }
+        }
+
+        inside(values(1)) {
+          case NullValue(position) => ()
+        }
+
+        inside(values(2)) {
+          case ArrayValue(values, position) => {
+            assert(values.size == 2)
+
+            inside(values(0)) {
+              case NumberValue(value, position) => {
+                assert(value == 42)
+              }
+            }
+
+            inside(values(1)) {
+              case ObjectValue(values, position) => {
+                assert(values.isEmpty)
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
