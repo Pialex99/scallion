@@ -99,17 +99,17 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
   val handMaidSumParser = LR1Parser[Int](EmptyStack)(actionSumTable, gotoSumTable)
 
   "HandMaisSumParser" should "1 = 1" in {
-    val result = handMaidSumParser(List(Num(1)).toIterator)
+    val result = handMaidSumParser(List(Num(1)).iterator)
     assert(result.getValue == Some(1))
   }
 
   it should "2 + 5 = 7" in {
-    val result = handMaidSumParser(List(Num(2), Plus, Num(5)).toIterator)
+    val result = handMaidSumParser(List(Num(2), Plus, Num(5)).iterator)
     assert(result.getValue == Some(7))
   }
   
   it should "4 + 3 + 8 = 15" in {
-    val result = handMaidSumParser(List(Num(4), Plus, Num(3), Plus, Num(8)).toIterator)
+    val result = handMaidSumParser(List(Num(4), Plus, Num(3), Plus, Num(8)).iterator)
     assert(result.getValue == Some(15))
   } 
 
@@ -174,47 +174,47 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
   val parser = LR1(sums)
 
   "LR1 parser" should "1 = 1" in {
-    val result = parser(List(Num(1)).toIterator)
+    val result = parser(List(Num(1)).iterator)
     assert(result.getValue == Some(1))
   }
 
   it should "2 + 5 = 7" in {
-    val result = parser(List(Num(2), Plus, Num(5)).toIterator)
+    val result = parser(List(Num(2), Plus, Num(5)).iterator)
     assert(result.getValue == Some(7))
   }
   
   it should "4 + 3 + 8 = 15" in {
-    val result = parser(List(Num(4), Plus, Num(3), Plus, Num(8)).toIterator)
+    val result = parser(List(Num(4), Plus, Num(3), Plus, Num(8)).iterator)
     assert(result.getValue == Some(15))
   }
   
   it should "2 * 3 = 6" in {
-    val result = parser(List(Num(2), Times, Num(3)).toIterator)
+    val result = parser(List(Num(2), Times, Num(3)).iterator)
     assert(result.getValue == Some(6))
   }
 
   it should "4 * 3 * 7 = 84" in {
-    val result = parser(List(Num(4), Times, Num(3), Times, Num(7)).toIterator)
+    val result = parser(List(Num(4), Times, Num(3), Times, Num(7)).iterator)
     assert(result.getValue == Some(84))
   }
 
   it should "3 * 5 + 4 = 19" in {
-    val result = parser(List(Num(3), Times, Num(5), Plus, Num(4)).toIterator)
+    val result = parser(List(Num(3), Times, Num(5), Plus, Num(4)).iterator)
     assert(result.getValue == Some(19))
   }
 
   it should "8 + 4 * 7 = 36" in {
-    val result = parser(List(Num(8), Plus, Num(4), Times, Num(7)).toIterator)
+    val result = parser(List(Num(8), Plus, Num(4), Times, Num(7)).iterator)
     assert(result.getValue == Some(36))
   }
 
   it should "7 + 1 * 6 + 3 = 16" in {
-    val result = parser(List(Num(7), Plus, Num(1), Times, Num(6), Plus, Num(3)).toIterator)
+    val result = parser(List(Num(7), Plus, Num(1), Times, Num(6), Plus, Num(3)).iterator)
     assert(result.getValue == Some(16))
   }
 
    it should "7 * 2 + 4 * 1 * 6 + 3 = 41" in {
-    val result = parser(List(Num(7), Times, Num(2), Plus, Num(4), Times, Num(1), Times, Num(6), Plus, Num(3)).toIterator)
+    val result = parser(List(Num(7), Times, Num(2), Plus, Num(4), Times, Num(1), Times, Num(6), Plus, Num(3)).iterator)
     assert(result.getValue == Some(41))
   }
 
@@ -379,47 +379,47 @@ class SimpleCalulatorTests extends FlatSpec with Inside with Syntaxes with Opera
   val handMaidParser = LR1Parser[Int](EmptyStack)(actionTable, gotoTable)
 
   "HandMaidParser" should "1 = 1" in {
-    val result = handMaidParser(List(Num(1)).toIterator)
+    val result = handMaidParser(List(Num(1)).iterator)
     assert(result.getValue == Some(1))
   }
 
   it should "2 + 5 = 7" in {
-    val result = handMaidParser(List(Num(2), Plus, Num(5)).toIterator)
+    val result = handMaidParser(List(Num(2), Plus, Num(5)).iterator)
     assert(result.getValue == Some(7))
   }
   
   it should "4 + 3 + 8 = 15" in {
-    val result = handMaidParser(List(Num(4), Plus, Num(3), Plus, Num(8)).toIterator)
+    val result = handMaidParser(List(Num(4), Plus, Num(3), Plus, Num(8)).iterator)
     assert(result.getValue == Some(15))
   }
   
   it should "2 * 3 = 6" in {
-    val result = handMaidParser(List(Num(2), Times, Num(3)).toIterator)
+    val result = handMaidParser(List(Num(2), Times, Num(3)).iterator)
     assert(result.getValue == Some(6))
   }
 
   it should "4 * 3 * 7 = 84" in {
-    val result = handMaidParser(List(Num(4), Times, Num(3), Times, Num(7)).toIterator)
+    val result = handMaidParser(List(Num(4), Times, Num(3), Times, Num(7)).iterator)
     assert(result.getValue == Some(84))
   }
 
   it should "3 * 5 + 4 = 19" in {
-    val result = handMaidParser(List(Num(3), Times, Num(5), Plus, Num(4)).toIterator)
+    val result = handMaidParser(List(Num(3), Times, Num(5), Plus, Num(4)).iterator)
     assert(result.getValue == Some(19))
   }
 
   it should "8 + 4 * 7 = 36" in {
-    val result = handMaidParser(List(Num(8), Plus, Num(4), Times, Num(7)).toIterator)
+    val result = handMaidParser(List(Num(8), Plus, Num(4), Times, Num(7)).iterator)
     assert(result.getValue == Some(36))
   }
 
   it should "7 + 1 * 6 + 3 = 16" in {
-    val result = handMaidParser(List(Num(7), Plus, Num(1), Times, Num(6), Plus, Num(3)).toIterator)
+    val result = handMaidParser(List(Num(7), Plus, Num(1), Times, Num(6), Plus, Num(3)).iterator)
     assert(result.getValue == Some(16))
   }
 
    it should "7 * 2 + 4 * 1 * 6 + 3 = 41" in {
-    val result = handMaidParser(List(Num(7), Times, Num(2), Plus, Num(4), Times, Num(1), Times, Num(6), Plus, Num(3)).toIterator)
+    val result = handMaidParser(List(Num(7), Times, Num(2), Plus, Num(4), Times, Num(1), Times, Num(6), Plus, Num(3)).iterator)
     assert(result.getValue == Some(41))
   }
 

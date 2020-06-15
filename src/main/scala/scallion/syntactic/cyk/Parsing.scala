@@ -20,7 +20,7 @@ trait Parsing { self: Syntaxes =>
   /** Factory of parsers. */
   object CYK {
 
-     /** Result of parsing.
+    /** Result of parsing.
       *
       * @group result
       */
@@ -152,8 +152,9 @@ trait Parsing { self: Syntaxes =>
         root.resetCopy()
         while (tokens.hasNext) {
           val token = tokens.next()
-          if (!workingTerminal.contains(getKind(token)))
+          if (!workingTerminal.contains(getKind(token))) {
             return UnexpectedToken(token, NetController(workingRoot, workingTerminal, startingIndex))
+          }
           workingTerminal(getKind(token)).net.apply(Value(token, index, index + 1))
           index += 1
         }
@@ -304,7 +305,7 @@ trait Parsing { self: Syntaxes =>
       }
     }
 
-    private class MergeNet[A, B](nullableLeft: Option[A], nullableRight: Option[B]) extends Cell[Either[Value[A], Value[B]], Value[A ~ B], (Int, Int) => Option[A ~ B]] {
+    private class MergeNet[A, B]() extends Cell[Either[Value[A], Value[B]], Value[A ~ B], (Int, Int) => Option[A ~ B]] {
       private var registered: List[Value[A ~ B] => Unit] = List()
       private val values: HashMap[(Int, Int), A ~ B] = HashMap()
 
@@ -318,10 +319,6 @@ trait Parsing { self: Syntaxes =>
         case Right(Value(v, start, end)) =>
           if (!(fromRight.contains(start) && fromRight(start).contains(end))) {
             fromRight.getOrElseUpdate(start, HashMap()) += end -> v
-            if (nullableLeft.isDefined && !values.contains((start, end))) {
-              values += (start, end) -> nullableLeft.get ~ v
-              registered.foreach(_(Value(nullableLeft.get ~ v, start, end)))
-            }
             if (fromLeft contains start) {
               for ((s, va) <- fromLeft(start)) {
                 registered.foreach(_(Value(va ~ v, s, end)))
@@ -331,10 +328,6 @@ trait Parsing { self: Syntaxes =>
         case Left(Value(v, start, end)) => 
           if (!(fromLeft.contains(end) && fromLeft(end).contains(start))) {
             fromLeft.getOrElseUpdate(end, HashMap()) += start -> v
-            if (nullableRight.isDefined && !values.contains((start, end))) {
-              values += (start, end) -> v ~ nullableRight.get
-              registered.foreach(_(Value(v ~ nullableRight.get, start, end)))
-            }
             if (fromRight contains end) {
               for ((e, vb) <- fromRight(end)) {
                 registered.foreach(_(Value(v ~ vb, start, e)))
@@ -411,11 +404,18 @@ trait Parsing { self: Syntaxes =>
       }
 
       case class Sequence[A, B](left: SyntaxNet[A], right: SyntaxNet[B], nullable: Option[A ~ B]) extends SyntaxNet[A ~ B] {
-        private val mergeNet: MergeNet[A, B] = new MergeNet(left.nullable, right.nullable)
+        private val mergeNet: MergeNet[A, B] = new MergeNet
         private var copied: Option[SyntaxNet[A ~ B]] = None
         override def init(): Unit = {
           left.init()
           right.init()
+
+          if (right.nullable.isDefined) {
+            left.net.map(_.map(_ ~ right.nullable.get)).register(net)
+          }
+          if (left.nullable.isDefined) {
+            right.net.map(_.map(left.nullable.get ~ _)).register(net)
+          }
           
           mergeNet.register(net)
 
@@ -449,8 +449,8 @@ trait Parsing { self: Syntaxes =>
           left.init()
           right.init()
 
-          left.net.register(this.net)
-          right.net.register(this.net)
+          left.net.register(net)
+          right.net.register(net)
         }
         override def copy(): SyntaxNet[A] = {
           copied getOrElse {
@@ -475,7 +475,7 @@ trait Parsing { self: Syntaxes =>
         override def init(): Unit = {
           inner.init()
 
-          inner.net.register(this.net)
+          inner.net.register(net)
         }
         override def copy(): SyntaxNet[A] = {
           copied getOrElse {
@@ -504,7 +504,7 @@ trait Parsing { self: Syntaxes =>
             initialized = true
             inner.init()
 
-            inner.net.register(this.net)
+            inner.net.register(net)
           }
         }
         override def copy(): SyntaxNet[A] = {

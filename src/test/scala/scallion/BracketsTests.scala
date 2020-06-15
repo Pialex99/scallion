@@ -84,17 +84,17 @@ class BracketsTests extends FlatSpec with Inside with Syntaxes with Operators wi
   val handMaidParser = LR1Parser[Int](EmptyStack)(actionTable, gotoTable)
 
   "HandmaisParser" should "output 0 on empty input" in {
-    val result = handMaidParser(List().toIterator)
+    val result = handMaidParser(List().iterator)
     assert(result.getValue == Some(0))
   }
 
   it should "() = 1" in {
-    val result = handMaidParser(List(Open, Close).toIterator)
+    val result = handMaidParser(List(Open, Close).iterator)
     assert(result.getValue == Some(1))
   }
 
   it should "(((()))) = 4" in {
-    val result = handMaidParser(List(Open, Open, Open, Open, Close, Close, Close, Close).toIterator)
+    val result = handMaidParser(List(Open, Open, Open, Open, Close, Close, Close, Close).iterator)
     assert(result.getValue == Some(4))
   }
 
@@ -123,17 +123,17 @@ class BracketsTests extends FlatSpec with Inside with Syntaxes with Operators wi
   val generatedParser = LR1(syntax)
 
   "Generated parser" should "output 0 on empty input" in {
-    val result = generatedParser(List().toIterator)
+    val result = generatedParser(List().iterator)
     assert(result.getValue == Some(0))
   }
 
   it should "() = 1" in {
-    val result = generatedParser(List(Open, Close).toIterator)
+    val result = generatedParser(List(Open, Close).iterator)
     assert(result.getValue == Some(1))
   }
 
   it should "(((()))) = 4" in {
-    val result = generatedParser(List(Open, Open, Open, Open, Close, Close, Close, Close).toIterator)
+    val result = generatedParser(List(Open, Open, Open, Open, Close, Close, Close, Close).iterator)
     assert(result.getValue == Some(4))
   }
 

@@ -480,7 +480,7 @@ class LR1ParserTests extends FlatSpec with Inside with Syntaxes with Operators w
     import scala.language.implicitConversions
     implicit def cast(c: Char) = elem(DelimiterClass(c))
     lazy val syntax: Syntax[Unit] = recursive {
-      (syntax ~ '(' ~ syntax ~ ')' ~ syntax ).map(_ => ()) | epsilon(Unit)
+      (syntax ~ '(' ~ syntax ~ ')' ~ syntax ).map(_ => ()) | epsilon((): Unit)
     }
     assertThrows[ConflictException] {
       LR1(syntax)

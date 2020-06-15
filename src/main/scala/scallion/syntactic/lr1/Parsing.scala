@@ -1,12 +1,12 @@
 package scallion.syntactic
+
 package lr1
 
 import scallion.util.internal._
 import scallion.syntactic._
-import scala.collection.mutable.Queue
+import scala.collection.mutable.{Queue, HashMap, ArrayBuilder}
 import scala.annotation.tailrec
-import scala.collection.mutable.HashMap
-import scala.collection.immutable.IntMap
+import scala.collection.immutable.{IntMap, VectorBuilder}
 
 /** This trait implements LR(1) parsing. */
 trait Parsing { self: Syntaxes =>
@@ -29,7 +29,7 @@ trait Parsing { self: Syntaxes =>
       case class ShiftReduce(kind: Option[Kind]) extends Conflict
     }
     
-    /** Indicates that a syntax is not LL(1) due to various conflicts.
+    /** Indicates that a syntax is not LR(1) due to various conflicts.
       *
       * @group conflict
       */
@@ -140,10 +140,10 @@ trait Parsing { self: Syntaxes =>
               val id = newId(s)
               val (s0, rules0) = createRuleFor(inner)
               (NonTerminal(id), TransformRule(id, function, s0) +: rules0)
-            case Recursive(recid, inner) =>
-              val id = newId(s)
-              val (s0, rules0) = createRuleFor(inner)
-              (NonTerminal(id), NormalRule1(id, s0) +: rules0)
+            case Recursive(_, inner) =>
+              createRuleFor(inner)
+            case Marked(_, inner) =>
+              createRuleFor(inner)
           }
 
         val (s0, rules) = createRuleFor(syntax)
@@ -208,7 +208,7 @@ trait Parsing { self: Syntaxes =>
 
     import grammar._
 
-    object item {
+    private object item {
       type State = Int
       sealed trait Action
       case class Shift(nextState: State) extends Action
@@ -323,16 +323,17 @@ trait Parsing { self: Syntaxes =>
             (shifts ++ reduces, goto)
           }
 
-          var actionTable: Map[State, Map[Option[Kind], Action]] = Map()
-          var gotoTable: Map[State, Map[Id, State]] = Map()
+          var actionTable: ArrayBuilder[Map[Option[Kind], Action]] = new ArrayBuilder.ofRef
+          var gotoTable: ArrayBuilder[Map[Id, State]] = new ArrayBuilder.ofRef
+
           while (!queue.isEmpty) {
             val itemSet = queue.dequeue()
-            val state = itemSetToState(itemSet)
             val (newActions, newGoto) = genTableForSet(itemSet)
-            actionTable += state -> newActions
-            gotoTable += state -> newGoto
+            actionTable += newActions
+            gotoTable += newGoto
           }
-          (conflicts, actionTable, gotoTable)
+
+          (conflicts, actionTable.result(), gotoTable.result())
       }
     }
 
@@ -361,15 +362,15 @@ trait Parsing { self: Syntaxes =>
 
     import stack._
      
-    /** Builds a LL(1) parser from a syntax description.
-      * In case the syntax is not LL(1),
+    /** Builds a LR(1) parser from a syntax description.
+      * In case the syntax is not LR(1),
       * returns the set of conflicts instead of a parser.
       *
       * @param syntax The description of the syntax.
       * @group parsing
       */
     def build[A](syntax: Syntax[A]): Either[Set[Conflict], Parser[A]] =
-      util.Try(apply(syntax, enforceLR1=true)) match {
+      util.Try(apply(syntax)) match {
         case util.Success(parser) => Right(parser)
         case util.Failure(ConflictException(conflicts)) => Left(conflicts)
         case util.Failure(exception) => throw exception
@@ -378,16 +379,14 @@ trait Parsing { self: Syntaxes =>
       /** Builds a LR(1) parser from a syntax description.
       *
       * @param syntax     The description of the syntax.
-      * @param enforceLL1 Indicates if the method should throw a
-      *                   `ConflictException` when the `syntax` is not LR(1).
-      *                   `true` by default.
+      * 
       * @throws ConflictException when the `syntax` is not LR(1) and `enforceLR1` is not set to `false`.
       * @group parsing
       */
-    def apply[A](syntax: Syntax[A], enforceLR1: Boolean = true): Parser[A] = {
+    def apply[A](syntax: Syntax[A]): Parser[A] = {
       implicit val (rulesById, (firstSets, nullable)) = getRules(syntax)
       val (conflicts, actionTable, gotoTable) = generateTables
-      if (enforceLR1 && !conflicts.isEmpty) 
+      if (!conflicts.isEmpty) 
         throw ConflictException(conflicts)
       else 
         LR1Parser(EmptyStack)(actionTable, gotoTable)
