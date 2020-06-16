@@ -114,32 +114,32 @@ trait Parsing { self: Syntaxes =>
           res
         }
 
-        def createRuleFor[B](s: Syntax[B]): (Symbol, Vector[Rule]) =
+        def createRuleFor[B](s: Syntax[B]): (Symbol, Map[Id, List[Rule]]) =
           if (ids contains s)
-            (NonTerminal(ids(s)), Vector())
+            (NonTerminal(ids(s)), Map())
           else s match {
             case Elem(kind) =>
-              (Terminal(kind), Vector())
+              (Terminal(kind), Map())
             case Disjunction(left, right) =>
               val id = newId(s)
               val (s0, rules0) = createRuleFor(left)
               val (s1, rules1) = createRuleFor(right)
-              (NonTerminal(id), Vector(NormalRule1(id, s0), NormalRule1(id, s1)) ++ rules0 ++ rules1)
+              (NonTerminal(id), rules0 ++ rules1 + (id -> List(NormalRule1(id, s0), NormalRule1(id, s1))))
             case Failure() =>
               val id = newId(s)
-              (NonTerminal(id), Vector(FailureRule(id)))
+              (NonTerminal(id), Map(id -> List(FailureRule(id))))
             case Sequence(left, right) =>
               val id = newId(s)
               val (s0, rules0) = createRuleFor(left)
               val (s1, rules1) = createRuleFor(right)
-              (NonTerminal(id), NormalRule2(id, s0, s1) +: (rules0 ++ rules1))
+              (NonTerminal(id), (rules0 ++ rules1) + (id -> List(NormalRule2(id, s0, s1))))
             case Success(value, _) =>
               val id = newId(s)
-              (NonTerminal(id), Vector(NormalRule0(id, value)))
+              (NonTerminal(id), Map(id -> List(NormalRule0(id, value))))
             case Transform(function, _, inner) =>
               val id = newId(s)
               val (s0, rules0) = createRuleFor(inner)
-              (NonTerminal(id), TransformRule(id, function, s0) +: rules0)
+              (NonTerminal(id), rules0 + (id -> List(TransformRule(id, function, s0))))
             case Recursive(_, inner) =>
               createRuleFor(inner)
             case Marked(_, inner) =>
@@ -147,11 +147,11 @@ trait Parsing { self: Syntaxes =>
           }
 
         val (s0, rules) = createRuleFor(syntax)
-        val rulesById = (NormalRule1(0, s0) +: rules) groupBy (_.ntId)
+        val rulesById = rules + (0 -> List(NormalRule1(0, s0)))
         (rulesById, getFirstSets(rulesById, nextId))
       }
 
-      def getFirstSets(rulesById: Map[Id, Vector[Rule]], maxId: Id): (Map[Id, Set[Option[Kind]]], Map[Id, Boolean]) = {
+      def getFirstSets(rulesById: Map[Id, List[Rule]], maxId: Id): (Map[Id, Set[Option[Kind]]], Map[Id, Boolean]) = {
         @tailrec
         def buildNullable(current: Map[Id, Boolean]): Map[Id, Boolean] = {
           val res = rulesById.mapValues(_.exists {
@@ -208,7 +208,7 @@ trait Parsing { self: Syntaxes =>
 
     import grammar._
 
-    private object item {
+    object item {
       type State = Int
       sealed trait Action
       case class Shift(nextState: State) extends Action
@@ -237,7 +237,7 @@ trait Parsing { self: Syntaxes =>
       }
 
       @tailrec
-      def close(itemSet: Set[Item])(implicit rulesById: Map[Id, Vector[Rule]], firstSets: Map[Id, Set[Option[Kind]]], nullable: Map[Id, Boolean]): Set[Item] = {
+      def close(itemSet: Set[Item])(implicit rulesById: Map[Id, List[Rule]], firstSets: Map[Id, Set[Option[Kind]]], nullable: Map[Id, Boolean]): Set[Item] = {
         def closeItem(item: Item): Set[Item] = item match {
           case Item10(id, _, followBy, NonTerminal(id2)) => 
             (item +: (rulesById(id2) map (getFirstItem(_, followBy)))).toSet
@@ -257,7 +257,7 @@ trait Parsing { self: Syntaxes =>
           close(res)
       }
 
-      def generateTables(implicit rulesById: Map[Id, Vector[Rule]], firstSets: Map[Id, Set[Option[Kind]]], nullable: Map[Id, Boolean])
+      def generateTables(implicit rulesById: Map[Id, List[Rule]], firstSets: Map[Id, Set[Option[Kind]]], nullable: Map[Id, Boolean])
         : (Set[Conflict], State => Map[Option[Kind], Action], State => Id => State) = {
           var conflicts: Set[Conflict] = Set()
           var nextState = 0
@@ -276,7 +276,7 @@ trait Parsing { self: Syntaxes =>
             })
           }
 
-          def genTableForSet(itemSet: ItemSet)(implicit rulesById: Map[Id, Vector[Rule]], firstSets: Map[Id, Set[Option[Kind]]], nullable: Map[Id, Boolean])
+          def genTableForSet(itemSet: ItemSet)(implicit rulesById: Map[Id, List[Rule]], firstSets: Map[Id, Set[Option[Kind]]], nullable: Map[Id, Boolean])
           : (Map[Option[Kind], Action], Map[Id, State]) = {
             val grouped = itemSet.groupBy {
               case Item0(_, _, _) => None
