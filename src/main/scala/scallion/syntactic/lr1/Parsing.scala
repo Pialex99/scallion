@@ -376,7 +376,7 @@ trait Parsing { self: Syntaxes =>
         case util.Failure(exception) => throw exception
       }
 
-      /** Builds a LR(1) parser from a syntax description.
+     /** Builds a LR(1) parser from a syntax description.
       *
       * @param syntax     The description of the syntax.
       * 

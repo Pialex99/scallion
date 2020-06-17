@@ -34,6 +34,13 @@ trait Parsing { self: Syntaxes =>
         case Parsed(v, _) => Some(v)
         case _ => None
       }
+
+      /** Apply the given function on the result of the parse */
+      def map[B](f: A => B): ParseResult[B] = this match {
+        case Parsed(value, rest)                    => Parsed(f(value), rest.map(f))
+        case UnexpectedEnd(rest)          => UnexpectedEnd(rest.map(f))
+        case UnexpectedToken(token, rest) => UnexpectedToken(token, rest.map(f))
+      }
     }
 
     /** Indicates that the input has been fully parsed, resulting in a `value`.
@@ -68,12 +75,35 @@ trait Parsing { self: Syntaxes =>
       */
     case class UnexpectedEnd[A](rest: Parser[A]) extends ParseResult[A]
 
-    sealed trait Parser[A] {
+    /** A CYK parser.
+     * 
+     * @group parsing
+     */
+    sealed trait Parser[A] { self =>
+      /** Parses a sequence of tokens.
+        *
+        * @group parsing
+        */
       def apply(tokens: Iterator[Token]): ParseResult[A]
+
+      /** Apply the given function on the result of the parser.
+       *
+       * @group parsing
+       */
+      def map[B](f: A => B): Parser[B] = {
+        new Parser[B] {
+          def apply(tokens: Iterator[Token]): ParseResult[B] = {
+            self.apply(tokens).map(f)
+          }
+        }
+      }    
     }
 
     private val syntaxToNetCache: WeakHashMap[Syntax[_], SyntaxNet[_]] = WeakHashMap()
-
+    /** Builds a CYK parser from a syntax description.
+     * 
+     * @param syntax  the description of the syntax.
+     */
     def apply[A](syntax: Syntax[A]): Parser[A] = {
       val recCell: HashMap[RecId, SyntaxCell[_]] = HashMap()
       def buildSyntaxCell[B](s: Syntax[B]): SyntaxCell[B] = s match {
