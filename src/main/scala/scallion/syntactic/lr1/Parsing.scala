@@ -545,6 +545,7 @@ trait Parsing { self: Syntaxes =>
         }
         val Left(r) = res.flatMap(applyAction(_, None))
         r
+        // the following code is slower so it has been replaced with the current one
         // val result0 = tokens.foldLeft[Either[ParseResult[A], Stack]](Right(startingStack)) {
         //   case (eitherStack, t) => eitherStack.flatMap(stack => applyAction(stack, Some(t)))
         // }
